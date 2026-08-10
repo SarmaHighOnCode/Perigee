@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from typing import Any
 from uuid import UUID
 
@@ -52,7 +51,10 @@ async def create_search_event(
         geo_lat,
         geo_lon,
         threshold_in_effect,
-        json.dumps(band_config),
+        # Pass the dict, NOT json.dumps(...): db.py registers a jsonb codec that
+        # already encodes with json.dumps. Pre-dumping stores a JSON *string*
+        # instead of an object, and band_config then reads back as str.
+        band_config,
         top_score,
         score_gap,
         candidate_count,

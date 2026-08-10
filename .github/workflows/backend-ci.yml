@@ -131,6 +131,38 @@ jobs:
       - name: Seeding is idempotent
         run: python scripts/seed_synthetic.py --persons 200 --cases 120 | grep -q "already has"
 
+      - name: Rebuild graph edges and node metrics
+        # These run after enrolment in normal operation. If they break, newly
+        # enrolled people silently appear to have no associates.
+        run: |
+          python scripts/compute_edges.py --with-metrics
+          python scripts/compute_node_metrics.py
+
+      - name: Edge rebuilding is idempotent
+        run: |
+          BEFORE=$(python -c "
+          import asyncio,sys; sys.path.insert(0,'.')
+          from app.config import get_settings
+          from app.db import create_pool
+          async def m():
+              p=await create_pool(get_settings())
+              n=await p.fetchval('SELECT count(*) FROM edge'); await p.close(); print(n)
+          asyncio.run(m())")
+          python scripts/compute_edges.py > /dev/null
+          AFTER=$(python -c "
+          import asyncio,sys; sys.path.insert(0,'.')
+          from app.config import get_settings
+          from app.db import create_pool
+          async def m():
+              p=await create_pool(get_settings())
+              n=await p.fetchval('SELECT count(*) FROM edge'); await p.close(); print(n)
+          asyncio.run(m())")
+          echo "edges before=$BEFORE after=$AFTER"
+          [ "$BEFORE" = "$AFTER" ] || { echo "::error::rebuild duplicated edges"; exit 1; }
+
+      - name: Governance report runs
+        run: python scripts/governance_report.py --days 30
+
       - name: Prove the HNSW index is chosen at realistic volume
         # The db test proves the index is USABLE (docs/ tests explain why it
         # cannot assert more at 400 rows -- a tiny table is genuinely cheaper to

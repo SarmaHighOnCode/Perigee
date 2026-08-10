@@ -75,11 +75,24 @@ def app_client() -> Iterator[object]:
 
 @pytest.fixture
 async def pool() -> AsyncIterator[object]:
-    import asyncpg
+    """Build the pool through the PRODUCTION factory, not asyncpg directly.
 
-    from app.db import apply_migrations
+    app.db.create_pool installs the jsonb type codec on every connection. A
+    test pool built without it accepts `str` where production accepts `dict`,
+    so the suite would exercise a configuration that never ships — which is
+    exactly how the jsonb binding bug reached CI.
+    """
+    from app.config import Settings
+    from app.db import apply_migrations, create_pool
 
-    created = await asyncpg.create_pool(TEST_DB_URL, min_size=1, max_size=3)
+    settings = Settings(
+        dataset_mode="synthetic",
+        app_env="test",
+        database_url=TEST_DB_URL,
+        db_pool_min=1,
+        db_pool_max=3,
+    )
+    created = await create_pool(settings)
     await apply_migrations(created)
     try:
         yield created
@@ -104,14 +117,20 @@ async def clean_db(pool):
 
 @pytest.fixture
 async def device_key(clean_db) -> tuple[str, object]:
-    """Provision a device and return (raw_key, device_id)."""
+    """Provision a device and return (raw_key, device_id).
+
+    The pepper comes from the resolved settings, never a literal: CI sets
+    DEVICE_KEY_PEPPER to its own value, and a hardcoded pepper here would hash
+    to something the application cannot match, failing every request with 401.
+    """
+    from app.config import get_settings
     from app.dependencies import hash_device_key
 
     raw = secrets.token_urlsafe(24)
     async with clean_db.acquire() as conn:
         device_id = await conn.fetchval(
             "INSERT INTO device (key_hash, label, app) VALUES ($1,$2,$3) RETURNING device_id",
-            hash_device_key(raw, "test-pepper"),
+            hash_device_key(raw, get_settings().device_key_pepper),
             "TEST-DEVICE",
             "field",
         )

@@ -100,20 +100,59 @@ async def _seed_embeddings(conn, count: int = 400) -> list[str]:
 async def test_hnsw_index_is_used(clean_db):
     """THE acceptance criterion for the vector path.
 
-    If the ORDER BY expression stops matching the index expression exactly,
-    Postgres silently falls back to a sequential scan — no error, just a
-    system that gets slower as the database grows.
+    What can actually break in a refactor is the ORDER BY expression drifting
+    from the index expression. When that happens the index becomes UNUSABLE for
+    this query and Postgres falls back to a sequential scan — silently, with no
+    error, just a system that degrades as the database grows.
+
+    `enable_seqscan = off` isolates exactly that property. It makes a seq scan
+    expensive rather than impossible, so the planner still refuses the index if
+    the expression does not match. The index name appearing in the plan
+    therefore proves usability, which is the thing under test.
+
+    Why not simply assert the plan at default settings: at test scale (hundreds
+    of rows) the planner is CORRECT to prefer a sequential scan — the whole
+    table is a handful of pages. Asserting otherwise would be asserting a
+    property of Postgres's cost model on tiny data, not a property of this
+    code, and it would fail for a reason that is not a defect. The planner
+    selects the index on its own once the table is large enough for it to win,
+    which is a function of data volume and not of anything a commit can change.
     """
     async with clean_db.acquire() as conn:
         await _seed_embeddings(conn, 400)
-        plan = await vector_search.explain(conn, unit_vector(7), MODEL_ID, 5)
+        async with conn.transaction():
+            # SET LOCAL: dies with the transaction, so it cannot leak onto a
+            # pooled connection and affect an unrelated query.
+            await conn.execute("SET LOCAL enable_seqscan = off")
+            plan = await vector_search.explain(conn, unit_vector(7), MODEL_ID, 5)
 
     assert "idx_fe_hnsw_w600k_r50" in plan, (
-        "HNSW index was NOT used. The query's ORDER BY expression must match "
-        "the index expression `(embedding::halfvec(512)) halfvec_cosine_ops` "
-        f"exactly.\n\nPlan:\n{plan}"
+        "HNSW index is NOT USABLE by the search query. The ORDER BY expression "
+        "must match the index expression `(embedding::halfvec(512)) "
+        "halfvec_cosine_ops` exactly — including both casts.\n\n"
+        f"Plan:\n{plan}"
     )
-    assert "Seq Scan on face_embedding" not in plan, f"sequential scan on the probe:\n{plan}"
+    assert "Seq Scan on face_embedding" not in plan, (
+        f"planner still chose a sequential scan with seqscan disabled, which "
+        f"means the index cannot serve this query:\n{plan}"
+    )
+
+
+async def test_hnsw_index_exists_and_is_partial_per_model(clean_db):
+    """Model isolation is what makes cross-model contamination impossible.
+
+    A non-partial index would let a future model's vectors share the graph with
+    this one, and vectors from different models are not comparable.
+    """
+    async with clean_db.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT indexdef FROM pg_indexes WHERE indexname = 'idx_fe_hnsw_w600k_r50'"
+        )
+    assert row is not None, "the HNSW index is missing"
+    indexdef = row["indexdef"]
+    assert "USING hnsw" in indexdef
+    assert "halfvec_cosine_ops" in indexdef
+    assert "WHERE (model_id =" in indexdef, f"index must be partial per model: {indexdef}"
 
 
 async def test_search_returns_nearest_first(clean_db):
@@ -273,10 +312,13 @@ async def test_decision_is_write_once(clean_db, device_key):
             "VALUES ($1,'NO_MATCH','OFF-1')",
             search_id,
         )
+        # A second decision of any valid shape must fail on the primary key.
+        # (Using CONFIRMED here would trip the confirmed_person_id CHECK first
+        # and pass for the wrong reason.)
         with pytest.raises(asyncpg.exceptions.UniqueViolationError):
             await conn.execute(
                 "INSERT INTO search_decision (search_id, decision, officer_id) "
-                "VALUES ($1,'CONFIRMED','OFF-1')",
+                "VALUES ($1,'INCONCLUSIVE','OFF-1')",
                 search_id,
             )
 

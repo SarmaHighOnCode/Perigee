@@ -131,32 +131,38 @@ jobs:
       - name: Seeding is idempotent
         run: python scripts/seed_synthetic.py --persons 200 --cases 120 | grep -q "already has"
 
-      - name: Prove the HNSW index is used
-        # The acceptance criterion. If the ORDER BY expression stops matching
-        # the index expression, Postgres silently falls back to a seq scan.
+      - name: Prove the HNSW index is usable by the search query
+        # What can break in a refactor is the ORDER BY expression drifting from
+        # the index expression, which makes the index UNUSABLE and silently
+        # degrades to a seq scan. enable_seqscan=off isolates that: it makes a
+        # seq scan expensive, not impossible, so the planner still refuses the
+        # index if the expression does not match.
+        #
+        # At this data volume the planner is CORRECT to prefer a seq scan by
+        # default -- the table is a few pages. See test_hnsw_index_is_used.
         run: |
           python - <<'PY'
-          import asyncio, os, sys
+          import asyncio, json, pathlib, sys
           sys.path.insert(0, ".")
-          from app.db import create_pool
           from app.config import get_settings
+          from app.db import create_pool
           from app.services import vector_search
-          import json, pathlib
 
           async def main():
-              fixtures = json.loads(
-                  pathlib.Path("fixtures/probe_vectors.json").read_text()
-              )
+              fixtures = json.loads(pathlib.Path("fixtures/probe_vectors.json").read_text())
               probe = fixtures["fixtures"]["FIXTURE_STRONG"]["embedding"]
               pool = await create_pool(get_settings())
               async with pool.acquire() as conn:
                   await conn.execute("ANALYZE face_embedding")
-                  plan = await vector_search.explain(
-                      conn, probe, fixtures["model_id"], 5
-                  )
+                  async with conn.transaction():
+                      await conn.execute("SET LOCAL enable_seqscan = off")
+                      plan = await vector_search.explain(conn, probe, fixtures["model_id"], 5)
               await pool.close()
-              print(plan)
-              assert "idx_fe_hnsw_w600k_r50" in plan, "HNSW INDEX NOT USED"
+
+              # Trim the echoed probe vector; it is 512 floats of noise.
+              print("\n".join(l[:180] for l in plan.splitlines()))
+
+              assert "idx_fe_hnsw_w600k_r50" in plan, "HNSW INDEX NOT USABLE BY THE QUERY"
               assert "Seq Scan on face_embedding" not in plan, "SEQUENTIAL SCAN"
               print("\nOK: HNSW index scan confirmed")
 
@@ -224,6 +230,24 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # The gitleaks ACTION calls the GitHub API to enumerate PR commits, which
+      # needs permissions the default token does not carry on a PR and fails
+      # with a 403. The binary scans the working tree and full history directly
+      # with no API access and no licence key.
+      - name: Install gitleaks
+        run: |
+          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz" \
+            | tar -xz -C /tmp gitleaks
+          /tmp/gitleaks version
+
+      - name: Scan working tree
+        run: /tmp/gitleaks detect --source . --no-banner --redact --exit-code 1
+
+      - name: Assert no .env is tracked
+        run: |
+          if git ls-files | grep -E '(^|/)\.env$'; then
+            echo "::error::a .env file is tracked"
+            exit 1
+          fi
+          echo "OK: only .env.example is tracked"

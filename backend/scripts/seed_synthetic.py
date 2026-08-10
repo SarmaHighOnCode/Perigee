@@ -37,6 +37,7 @@ import asyncio
 import json
 import sys
 from collections import deque
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -334,6 +335,13 @@ async def seed(persons_n: int, cases_n: int, reset: bool) -> int:
 
             for c in range(cases_n):
                 station = STATIONS[int(rng.integers(0, len(STATIONS)))]
+                # A real date object: asyncpg binds `date` columns strictly and
+                # rejects an ISO string.
+                registered_on = date(
+                    2022 + int(rng.integers(0, 4)),
+                    int(rng.integers(1, 13)),
+                    int(rng.integers(1, 28)),
+                )
                 cid = await conn.fetchval(
                     """
                     INSERT INTO case_record (
@@ -347,8 +355,7 @@ async def seed(persons_n: int, cases_n: int, reset: bool) -> int:
                     station,
                     DISTRICTS[int(rng.integers(0, len(DISTRICTS)))],
                     offence_ids[int(rng.integers(0, len(offence_ids)))],
-                    f"{2022 + int(rng.integers(0, 4))}-"
-                    f"{int(rng.integers(1, 13)):02d}-{int(rng.integers(1, 28)):02d}",
+                    registered_on,
                     ["open", "chargesheeted", "convicted", "acquitted", "closed"][
                         int(rng.integers(0, 5))
                     ],

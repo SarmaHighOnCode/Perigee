@@ -1,0 +1,63 @@
+# Render Blueprint — infrastructure in the repo rather than in a dashboard
+# nobody else can inspect.
+#
+# Native Python runtime, no Docker. This fits in the free tier's 512 MB ONLY
+# because face embedding runs on-device and the backend carries zero ML
+# dependencies — see docs/ADR/0001-on-device-embedding.md.
+
+services:
+  - type: web
+    name: perigee-core
+    runtime: python
+    plan: free
+    region: singapore # colocate with Neon ap-southeast-1; cross-region costs ~200 ms
+    rootDir: backend
+    branch: main
+    buildCommand: pip install --no-cache-dir -r requirements.txt
+    # --workers 1 is deliberate: 512 MB does not hold two uvicorn workers plus
+    # an asyncpg pool, AND the in-process rate limiter is only correct with a
+    # single process. Adding a worker would silently double every limit.
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: PYTHON_VERSION
+        value: '3.13.0'
+      - key: APP_ENV
+        value: production
+      - key: DATASET_MODE
+        value: synthetic
+      - key: ALLOWED_MODEL_IDS
+        value: insightface/w600k_r50@1
+      - key: QUALITY_FLOOR
+        value: '0.35'
+      - key: BAND_NO_MATCH
+        value: '0.28'
+      - key: BAND_WEAK
+        value: '0.42'
+      - key: BAND_REVIEW
+        value: '0.58'
+      - key: SEARCH_PENDING_LIMIT
+        value: '3'
+      - key: SEARCH_EXPIRY_MINUTES
+        value: '30'
+      - key: RETAIN_PROBE_EMBEDDING
+        value: 'false'
+      - key: LOG_LEVEL
+        value: INFO
+
+      # sync: false => set in the dashboard, never committed.
+      - key: DATABASE_URL
+        sync: false
+      - key: DEVICE_KEY_PEPPER
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: R2_ENDPOINT
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET
+        sync: false

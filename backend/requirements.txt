@@ -1,0 +1,14 @@
+# Perigee Core runtime dependencies.
+#
+# DELIBERATELY ABSENT: onnxruntime, numpy, torch, opencv, insightface.
+# Face embedding runs on-device (ADR-0001). The backend receives a 512-float
+# vector and never sees an image. That absence is what keeps this service
+# inside Render's free 512 MB tier with ~4x headroom.
+
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+asyncpg==0.30.0
+pydantic==2.10.4
+pydantic-settings==2.7.0
+boto3==1.35.90
+python-json-logger==3.2.1

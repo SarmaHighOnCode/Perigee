@@ -1,0 +1,229 @@
+name: backend-ci
+
+on:
+  push:
+    branches: [main]
+    paths: ['backend/**', '.github/workflows/backend-ci.yml']
+  pull_request:
+    paths: ['backend/**', '.github/workflows/backend-ci.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: backend-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: backend
+
+jobs:
+  lint:
+    name: lint + types
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+      # A venv at ./.venv so pyright resolves the same environment CI installs
+      # into, matching the venvPath/venv in pyproject.toml.
+      - run: python -m venv .venv
+      - run: .venv/bin/pip install --upgrade pip
+      - run: .venv/bin/pip install -r requirements-dev.txt
+      - run: .venv/bin/ruff check .
+      - run: .venv/bin/ruff format --check .
+      - run: .venv/bin/pyright
+
+  test:
+    name: tests (real postgres + pgvector)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        # Real pgvector, not a mock. The index-expression match and the
+        # database triggers are exactly the parts that must not be faked.
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: perigee
+          POSTGRES_PASSWORD: perigee
+          POSTGRES_DB: perigee_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U perigee"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATASET_MODE: synthetic
+      APP_ENV: test
+      DEVICE_KEY_PEPPER: ci-pepper
+      PERIGEE_TEST_DATABASE_URL: postgresql://perigee:perigee@localhost:5432/perigee_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+
+      - name: Run full suite
+        run: pytest tests -q --tb=short
+
+      - name: Assert DB tests actually ran
+        # A skipped db suite would let a broken vector path or a missing
+        # trigger pass CI silently. Fail loudly instead.
+        run: |
+          pytest tests -m db -q --collect-only > /dev/null
+          COUNT=$(pytest tests -m db -q --collect-only 2>/dev/null | grep -c '::' || true)
+          echo "collected $COUNT db-marked tests"
+          if [ "$COUNT" -lt 15 ]; then
+            echo "::error::expected >=15 db tests, collected $COUNT"
+            exit 1
+          fi
+
+  migrate-and-seed:
+    name: migrations + seed + HNSW plan
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: perigee
+          POSTGRES_PASSWORD: perigee
+          POSTGRES_DB: perigee_seed
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U perigee"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATASET_MODE: synthetic
+      APP_ENV: test
+      DEVICE_KEY_PEPPER: ci-pepper
+      DATABASE_URL: postgresql://perigee:perigee@localhost:5432/perigee_seed
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+
+      - name: Apply migrations
+        run: python scripts/migrate.py
+
+      - name: Migrations are idempotent
+        run: |
+          OUT=$(python scripts/migrate.py)
+          echo "$OUT"
+          echo "$OUT" | grep -q "no pending migrations"
+
+      - name: Migration status
+        run: python scripts/migrate.py --status
+
+      - name: Seed deterministic synthetic data
+        run: python scripts/seed_synthetic.py --persons 200 --cases 120
+
+      - name: Seeding is idempotent
+        run: python scripts/seed_synthetic.py --persons 200 --cases 120 | grep -q "already has"
+
+      - name: Prove the HNSW index is used
+        # The acceptance criterion. If the ORDER BY expression stops matching
+        # the index expression, Postgres silently falls back to a seq scan.
+        run: |
+          python - <<'PY'
+          import asyncio, os, sys
+          sys.path.insert(0, ".")
+          from app.db import create_pool
+          from app.config import get_settings
+          from app.services import vector_search
+          import json, pathlib
+
+          async def main():
+              fixtures = json.loads(
+                  pathlib.Path("fixtures/probe_vectors.json").read_text()
+              )
+              probe = fixtures["fixtures"]["FIXTURE_STRONG"]["embedding"]
+              pool = await create_pool(get_settings())
+              async with pool.acquire() as conn:
+                  await conn.execute("ANALYZE face_embedding")
+                  plan = await vector_search.explain(
+                      conn, probe, fixtures["model_id"], 5
+                  )
+              await pool.close()
+              print(plan)
+              assert "idx_fe_hnsw_w600k_r50" in plan, "HNSW INDEX NOT USED"
+              assert "Seq Scan on face_embedding" not in plan, "SEQUENTIAL SCAN"
+              print("\nOK: HNSW index scan confirmed")
+
+          asyncio.run(main())
+          PY
+
+      - name: Report fixture bands
+        run: cat fixtures/probe_vectors.json | python -c "import json,sys; d=json.load(sys.stdin); [print(f\"{k:<22}{v['observed_top_similarity']:>8}  {v['expected_band']}\") for k,v in d['fixtures'].items()]"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: probe-fixtures
+          path: backend/fixtures/probe_vectors.json
+
+  openapi:
+    name: openapi contract
+    runs-on: ubuntu-latest
+    env:
+      DATASET_MODE: synthetic
+      APP_ENV: test
+      DEVICE_KEY_PEPPER: ci-pepper
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+
+      - name: Export OpenAPI
+        run: |
+          python - <<'PY'
+          import json, pathlib
+          from app.main import create_app
+          schema = create_app().openapi()
+          pathlib.Path("openapi.json").write_text(json.dumps(schema, indent=2))
+          print(f"{len(schema['paths'])} paths documented")
+          PY
+
+      - name: No match-assertion field may exist
+        # The product's central claim, enforced in CI. This API returns ranked
+        # candidates; it must never assert an identification.
+        run: |
+          for field in is_match matched is_matched identity_confirmed identified match_found; do
+            if grep -q "\"$field\"" openapi.json; then
+              echo "::error::forbidden field '$field' present in the API schema"
+              exit 1
+            fi
+          done
+          echo "OK: no match-assertion fields"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: openapi
+          path: backend/openapi.json
+
+  secrets:
+    name: secret scan
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,43 @@
+name: mobile-ci
+
+on:
+  push:
+    branches: [main]
+    paths: ['testing/testcamera/**', '.github/workflows/mobile-ci.yml']
+  pull_request:
+    paths: ['testing/testcamera/**', '.github/workflows/mobile-ci.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: mobile-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: testing/testcamera
+
+jobs:
+  check:
+    name: typecheck + tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: testing/testcamera/pnpm-lock.yaml
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Tests
+        run: pnpm test

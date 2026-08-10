@@ -1,0 +1,299 @@
+name: backend-ci
+
+on:
+  push:
+    branches: [main]
+    paths: ['backend/**', '.github/workflows/backend-ci.yml']
+  pull_request:
+    paths: ['backend/**', '.github/workflows/backend-ci.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: backend-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: backend
+
+jobs:
+  lint:
+    name: lint + types
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+      # A venv at ./.venv so pyright resolves the same environment CI installs
+      # into, matching the venvPath/venv in pyproject.toml.
+      - run: python -m venv .venv
+      - run: .venv/bin/pip install --upgrade pip
+      - run: .venv/bin/pip install -r requirements-dev.txt
+      - run: .venv/bin/ruff check .
+      - run: .venv/bin/ruff format --check .
+      - run: .venv/bin/pyright
+
+  test:
+    name: tests (real postgres + pgvector)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        # Real pgvector, not a mock. The index-expression match and the
+        # database triggers are exactly the parts that must not be faked.
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: perigee
+          POSTGRES_PASSWORD: perigee
+          POSTGRES_DB: perigee_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U perigee"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATASET_MODE: synthetic
+      APP_ENV: test
+      DEVICE_KEY_PEPPER: ci-pepper
+      PERIGEE_TEST_DATABASE_URL: postgresql://perigee:perigee@localhost:5432/perigee_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+
+      - name: Run full suite
+        run: pytest tests -q --tb=short
+
+      - name: Assert DB tests actually ran
+        # A skipped db suite would let a broken vector path or a missing
+        # trigger pass CI silently. Fail loudly instead.
+        run: |
+          pytest tests -m db -q --collect-only > /dev/null
+          COUNT=$(pytest tests -m db -q --collect-only 2>/dev/null | grep -c '::' || true)
+          echo "collected $COUNT db-marked tests"
+          if [ "$COUNT" -lt 15 ]; then
+            echo "::error::expected >=15 db tests, collected $COUNT"
+            exit 1
+          fi
+
+  migrate-and-seed:
+    name: migrations + seed + HNSW plan
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: perigee
+          POSTGRES_PASSWORD: perigee
+          POSTGRES_DB: perigee_seed
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U perigee"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATASET_MODE: synthetic
+      APP_ENV: test
+      DEVICE_KEY_PEPPER: ci-pepper
+      DATABASE_URL: postgresql://perigee:perigee@localhost:5432/perigee_seed
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+
+      - name: Apply migrations
+        run: python scripts/migrate.py
+
+      - name: Migrations are idempotent
+        run: |
+          OUT=$(python scripts/migrate.py)
+          echo "$OUT"
+          echo "$OUT" | grep -q "no pending migrations"
+
+      - name: Migration status
+        run: python scripts/migrate.py --status
+
+      - name: Seed deterministic synthetic data
+        run: python scripts/seed_synthetic.py --persons 200 --cases 120
+
+      - name: Seeding is idempotent
+        run: python scripts/seed_synthetic.py --persons 200 --cases 120 | grep -q "already has"
+
+      - name: Prove the HNSW index is chosen at realistic volume
+        # The db test proves the index is USABLE (docs/ tests explain why it
+        # cannot assert more at 400 rows -- a tiny table is genuinely cheaper to
+        # scan, and the planner is right to prefer that).
+        #
+        # This step answers the other half: at a volume where the index SHOULD
+        # win, does the planner actually pick it with no forcing at all? Vectors
+        # are generated in numpy and bulk-loaded, which is far faster than
+        # generating them in SQL.
+        run: |
+          python - <<'PY'
+          import asyncio, json, pathlib, sys, time
+          sys.path.insert(0, ".")
+          import numpy as np
+          from app.config import get_settings
+          from app.db import create_pool, encode_vector
+          from app.services import vector_search
+
+          TARGET = 20_000
+
+          async def main():
+              fixtures = json.loads(pathlib.Path("fixtures/probe_vectors.json").read_text())
+              probe = fixtures["fixtures"]["FIXTURE_STRONG"]["embedding"]
+              model_id = fixtures["model_id"]
+              pool = await create_pool(get_settings())
+
+              async with pool.acquire() as conn:
+                  started = time.perf_counter()
+                  rng = np.random.default_rng(7)
+
+                  # Bulk-build with the index dropped, then rebuild: an HNSW
+                  # graph builds far faster in one pass than by 20k incremental
+                  # inserts. The definition is read back from the catalogue
+                  # rather than retyped, so it cannot drift from the migration.
+                  indexdef = await conn.fetchval(
+                      "SELECT indexdef FROM pg_indexes WHERE indexname = 'idx_fe_hnsw_w600k_r50'"
+                  )
+                  assert indexdef, "the HNSW index is missing"
+                  await conn.execute("DROP INDEX idx_fe_hnsw_w600k_r50")
+
+                  person_ids = await conn.fetch(
+                      """
+                      INSERT INTO person (full_name, masked_name, dataset_mode)
+                      SELECT 'Bulk ' || g, 'B*** ' || g, 'synthetic'
+                      FROM generate_series(1, $1) g
+                      RETURNING person_id
+                      """,
+                      TARGET,
+                  )
+                  vectors = rng.normal(size=(TARGET, 512))
+                  vectors /= np.linalg.norm(vectors, axis=1, keepdims=True)
+                  await conn.executemany(
+                      """
+                      INSERT INTO face_embedding (person_id, model_id, embedding, quality_score)
+                      VALUES ($1, $2, $3::text::vector(512), 0.9)
+                      """,
+                      [
+                          (r["person_id"], model_id, encode_vector(vectors[i].tolist()))
+                          for i, r in enumerate(person_ids)
+                      ],
+                  )
+
+                  await conn.execute(indexdef)
+                  await conn.execute("ANALYZE face_embedding")
+                  total = await conn.fetchval(
+                      "SELECT count(*) FROM face_embedding WHERE model_id = $1", model_id
+                  )
+                  print(f"loaded to {total} embeddings in {time.perf_counter() - started:.1f}s")
+
+                  # No SET LOCAL, no forcing. Default planner settings.
+                  plan = await vector_search.explain(conn, probe, model_id, 5)
+
+              await pool.close()
+              print("\n".join(line[:200] for line in plan.splitlines()))
+
+              assert "idx_fe_hnsw_w600k_r50" in plan, (
+                  f"planner did NOT choose the HNSW index at {total} rows"
+              )
+              assert "Seq Scan on face_embedding" not in plan, "SEQUENTIAL SCAN"
+              print(f"\nOK: planner chose the HNSW index unaided at {total} embeddings")
+
+          asyncio.run(main())
+          PY
+
+      - name: Report fixture bands
+        run: cat fixtures/probe_vectors.json | python -c "import json,sys; d=json.load(sys.stdin); [print(f\"{k:<22}{v['observed_top_similarity']:>8}  {v['expected_band']}\") for k,v in d['fixtures'].items()]"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: probe-fixtures
+          path: backend/fixtures/probe_vectors.json
+
+  openapi:
+    name: openapi contract
+    runs-on: ubuntu-latest
+    env:
+      DATASET_MODE: synthetic
+      APP_ENV: test
+      DEVICE_KEY_PEPPER: ci-pepper
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+
+      - name: Export OpenAPI
+        run: |
+          python - <<'PY'
+          import json, pathlib
+          from app.main import create_app
+          schema = create_app().openapi()
+          pathlib.Path("openapi.json").write_text(json.dumps(schema, indent=2))
+          print(f"{len(schema['paths'])} paths documented")
+          PY
+
+      - name: No match-assertion field may exist
+        # The product's central claim, enforced in CI. This API returns ranked
+        # candidates; it must never assert an identification.
+        run: |
+          for field in is_match matched is_matched identity_confirmed identified match_found; do
+            if grep -q "\"$field\"" openapi.json; then
+              echo "::error::forbidden field '$field' present in the API schema"
+              exit 1
+            fi
+          done
+          echo "OK: no match-assertion fields"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: openapi
+          path: backend/openapi.json
+
+  secrets:
+    name: secret scan
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # The gitleaks ACTION calls the GitHub API to enumerate PR commits, which
+      # needs permissions the default token does not carry on a PR and fails
+      # with a 403. The binary scans the working tree and full history directly
+      # with no API access and no licence key.
+      - name: Install gitleaks
+        run: |
+          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz" \
+            | tar -xz -C /tmp gitleaks
+          /tmp/gitleaks version
+
+      - name: Scan working tree
+        run: /tmp/gitleaks detect --source . --no-banner --redact --exit-code 1
+
+      - name: Assert no .env is tracked
+        run: |
+          if git ls-files | grep -E '(^|/)\.env$'; then
+            echo "::error::a .env file is tracked"
+            exit 1
+          fi
+          echo "OK: only .env.example is tracked"

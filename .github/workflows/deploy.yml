@@ -1,0 +1,93 @@
+name: deploy
+
+# CD for main. Runs only after backend-ci has passed on main, so a red build
+# can never reach the deployed environment.
+#
+# Deployment is OPTIONAL and skips cleanly until the infrastructure exists:
+# each job no-ops with a notice if its secret is absent, rather than failing
+# the run and turning main permanently red.
+#
+# Secrets to set when ready (Settings -> Secrets and variables -> Actions):
+#   RENDER_DEPLOY_HOOK_URL   Render -> service -> Settings -> Deploy Hook
+#   PERIGEE_API_URL          public base URL, for the post-deploy smoke test
+
+on:
+  workflow_run:
+    workflows: [backend-ci]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy-api:
+    name: deploy perigee-core
+    runs-on: ubuntu-latest
+    # Never deploy a failed build. workflow_run fires on failure too.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    environment: production
+    outputs:
+      deployed: ${{ steps.trigger.outputs.deployed }}
+    steps:
+      - name: Trigger Render deploy
+        id: trigger
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "::notice::RENDER_DEPLOY_HOOK_URL not set - skipping deploy."
+            echo "deployed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          curl -fsS -X POST "$HOOK" > /dev/null
+          echo "deployed=true" >> "$GITHUB_OUTPUT"
+          echo "::notice::Render deploy triggered."
+
+  smoke:
+    name: post-deploy smoke test
+    runs-on: ubuntu-latest
+    needs: deploy-api
+    if: needs.deploy-api.outputs.deployed == 'true'
+    steps:
+      - name: Wait for the service to come up
+        env:
+          API: ${{ secrets.PERIGEE_API_URL }}
+        run: |
+          if [ -z "$API" ]; then
+            echo "::notice::PERIGEE_API_URL not set - skipping smoke test."
+            exit 0
+          fi
+
+          # Render free spins down after 15 min idle and cold-starts in ~50 s,
+          # so a deploy check needs a generous budget before it means anything.
+          for i in $(seq 1 30); do
+            if curl -fsS --max-time 20 "$API/healthz" > /tmp/health.json 2>/dev/null; then
+              echo "healthy after ${i} attempt(s):"
+              cat /tmp/health.json
+              break
+            fi
+            echo "attempt $i: not ready yet"
+            sleep 10
+          done
+
+          test -s /tmp/health.json || { echo "::error::service never became healthy"; exit 1; }
+
+          # A deployment that lost its synthetic flag must fail loudly.
+          grep -q '"dataset_mode":"synthetic"' /tmp/health.json \
+            || grep -q '"dataset_mode": "synthetic"' /tmp/health.json \
+            || { echo "::error::dataset_mode is not 'synthetic'"; exit 1; }
+
+      - name: Verify readiness and migrations
+        env:
+          API: ${{ secrets.PERIGEE_API_URL }}
+        run: |
+          [ -n "$API" ] || exit 0
+          curl -fsS --max-time 30 "$API/readyz" | tee /tmp/ready.json
+          grep -q '"database":"ok"' /tmp/ready.json \
+            || grep -q '"database": "ok"' /tmp/ready.json \
+            || { echo "::error::database not reachable from the deployed service"; exit 1; }

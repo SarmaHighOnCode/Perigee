@@ -131,15 +131,12 @@ jobs:
       - name: Seeding is idempotent
         run: python scripts/seed_synthetic.py --persons 200 --cases 120 | grep -q "already has"
 
-      - name: Prove the HNSW index is usable by the search query
-        # What can break in a refactor is the ORDER BY expression drifting from
-        # the index expression, which makes the index UNUSABLE and silently
-        # degrades to a seq scan. enable_seqscan=off isolates that: it makes a
-        # seq scan expensive, not impossible, so the planner still refuses the
-        # index if the expression does not match.
-        #
-        # At this data volume the planner is CORRECT to prefer a seq scan by
-        # default -- the table is a few pages. See test_hnsw_index_is_used.
+      - name: Prove the HNSW index is used
+        # At DEFAULT planner settings -- no forcing. Two silent failure modes:
+        # the ORDER BY drifting from the index expression, and model_id being
+        # passed as a parameter (a partial index cannot be matched against a
+        # value unknown at plan time). Either leaves the index permanently
+        # unused while the API keeps returning correct answers.
         run: |
           python - <<'PY'
           import asyncio, json, pathlib, sys
@@ -154,17 +151,16 @@ jobs:
               pool = await create_pool(get_settings())
               async with pool.acquire() as conn:
                   await conn.execute("ANALYZE face_embedding")
-                  async with conn.transaction():
-                      await conn.execute("SET LOCAL enable_seqscan = off")
-                      plan = await vector_search.explain(conn, probe, fixtures["model_id"], 5)
+                  plan = await vector_search.explain(conn, probe, fixtures["model_id"], 5)
               await pool.close()
 
               # Trim the echoed probe vector; it is 512 floats of noise.
-              print("\n".join(l[:180] for l in plan.splitlines()))
+              print("\n".join(line[:180] for line in plan.splitlines()))
 
-              assert "idx_fe_hnsw_w600k_r50" in plan, "HNSW INDEX NOT USABLE BY THE QUERY"
+              assert "idx_fe_hnsw_w600k_r50" in plan, "HNSW INDEX NOT USED"
               assert "Seq Scan on face_embedding" not in plan, "SEQUENTIAL SCAN"
-              print("\nOK: HNSW index scan confirmed")
+              assert "Bitmap Index Scan on idx_fe_model" not in plan, "FELL BACK TO THE BTREE"
+              print("\nOK: HNSW index scan confirmed at default planner settings")
 
           asyncio.run(main())
           PY

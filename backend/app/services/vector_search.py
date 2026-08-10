@@ -1,24 +1,35 @@
 """pgvector nearest-neighbour search.
 
-Two things here are easy to get wrong and expensive to debug.
+Three things here are easy to get wrong and expensive to debug. All three fail
+SILENTLY -- no error, just a system that is slower or less correct than it looks.
 
 1. THE INDEX EXPRESSION MUST MATCH EXACTLY.
    The index is on `(embedding::halfvec(512)) halfvec_cosine_ops`, so the
-   ORDER BY must be `embedding::halfvec(512) <=> <halfvec>`. Any mismatch and
-   Postgres silently falls back to a sequential scan — no error, just slow.
-   tests/test_vector_search.py asserts the plan.
+   ORDER BY must be `embedding::halfvec(512) <=> <halfvec>`.
 
-2. DE-DUPLICATION BY PERSON CANNOT BE DONE IN THE INDEX SCAN.
-   A person has several embeddings (multi-angle enrolment), and we want their
+2. THE PARTIAL-INDEX PREDICATE MUST BE A LITERAL, NOT A PARAMETER.
+   The index carries `WHERE model_id = 'insightface/w600k_r50@1'`. Postgres
+   only uses a partial index when it can PROVE the query's predicate implies
+   the index's. It cannot prove that about a parameter whose value is unknown
+   at plan time, so `WHERE model_id = $2` silently excludes the index from
+   consideration and the planner falls back to the plain btree plus a sort.
+   The model_id is therefore inlined as a literal -- see `_search_sql`.
+
+3. DE-DUPLICATION BY PERSON CANNOT HAPPEN IN THE INDEX SCAN.
+   A person has several embeddings (multi-angle enrolment) and we want their
    best. But `DISTINCT ON (person_id)` requires `ORDER BY person_id, ...`,
    which discards the distance ordering the index provides. So: over-fetch by
    distance using the index, then de-duplicate in an outer query.
 
-Parameters are bound as text and cast `$n::text::vector(512)` so asyncpg never
-needs a registered `vector` codec — one less thing to lose on a reconnect.
+The probe vector is bound as text and double-cast (`$1::text::vector(512)`) so
+asyncpg never needs a registered `vector` codec -- one less thing to lose
+silently on a reconnect.
 """
 
 from __future__ import annotations
+
+import re
+from functools import lru_cache
 
 import asyncpg
 
@@ -29,15 +40,20 @@ from app.db import encode_vector
 OVERFETCH_FACTOR = 4
 OVERFETCH_MIN = 20
 
-_SEARCH_SQL = """
+# model_id is inlined into SQL, so its shape is constrained defensively even
+# though every caller has already checked it against the config allowlist.
+# Quotes, backslashes and whitespace cannot appear.
+_MODEL_ID_PATTERN = re.compile(r"^[A-Za-z0-9._/@:-]{1,128}$")
+
+_SEARCH_SQL_TEMPLATE = """
 WITH nn AS (
     SELECT person_id,
            embedding_id,
            embedding <=> $1::text::vector(512) AS distance
     FROM   face_embedding
-    WHERE  model_id = $2
+    WHERE  model_id = {model_literal}
     ORDER  BY embedding::halfvec(512) <=> $1::text::halfvec(512)
-    LIMIT  $3
+    LIMIT  $2
 ),
 best AS (
     SELECT DISTINCT ON (person_id) person_id, embedding_id, distance
@@ -49,8 +65,28 @@ SELECT person_id,
        1 - distance AS similarity
 FROM   best
 ORDER  BY distance
-LIMIT  $4
+LIMIT  $3
 """
+
+
+class UnsafeModelIdError(ValueError):
+    """A model_id that cannot be safely inlined into SQL."""
+
+
+@lru_cache(maxsize=16)
+def _search_sql(model_id: str) -> str:
+    """Build (and cache) the search SQL for one model_id.
+
+    The value is inlined rather than parameterised so the planner can match the
+    partial index predicate (see note 2 above). Injection is not reachable:
+    callers validate model_id against the config allowlist before this point,
+    and the pattern below independently rejects anything containing a quote,
+    backslash, or whitespace. The result is cached per model, so the formatting
+    happens a handful of times per process, never per request.
+    """
+    if not _MODEL_ID_PATTERN.match(model_id):
+        raise UnsafeModelIdError(f"model_id {model_id!r} is not a permitted identifier")
+    return _SEARCH_SQL_TEMPLATE.format(model_literal=f"'{model_id}'")
 
 
 async def search(
@@ -67,18 +103,17 @@ async def search(
     encoded = encode_vector(probe)
     overfetch = max(top_k * OVERFETCH_FACTOR, OVERFETCH_MIN)
 
-    rows = await conn.fetch(_SEARCH_SQL, encoded, model_id, overfetch, top_k)
+    rows = await conn.fetch(_search_sql(model_id), encoded, overfetch, top_k)
     return [(str(r["person_id"]), str(r["embedding_id"]), float(r["similarity"])) for r in rows]
 
 
 async def explain(conn: asyncpg.Connection, probe: list[float], model_id: str, top_k: int) -> str:
-    """Return the query plan. Used by tests to prove the HNSW index is used."""
+    """Return the query plan. Used by tests and CI to prove the index is used."""
     encoded = encode_vector(probe)
     overfetch = max(top_k * OVERFETCH_FACTOR, OVERFETCH_MIN)
     rows = await conn.fetch(
-        f"EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT) {_SEARCH_SQL}",
+        f"EXPLAIN (ANALYZE, BUFFERS, FORMAT TEXT) {_search_sql(model_id)}",
         encoded,
-        model_id,
         overfetch,
         top_k,
     )

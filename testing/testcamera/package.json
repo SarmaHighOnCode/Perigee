@@ -1,0 +1,54 @@
+{
+  "name": "perigee-camera-lab",
+  "version": "0.1.0",
+  "private": true,
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start --dev-client",
+    "android": "expo run:android",
+    "prebuild": "expo prebuild --platform android",
+    "build:debug": "cd android && gradlew.bat app:assembleDebug",
+    "build:release": "cd android && gradlew.bat app:assembleRelease",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "ios": "expo run:ios"
+  },
+  "dependencies": {
+    "expo": "~54.0.36",
+    "expo-build-properties": "~1.0.10",
+    "expo-clipboard": "~8.0.8",
+    "expo-device": "~8.0.10",
+    "expo-file-system": "~19.0.23",
+    "expo-image": "~3.0.11",
+    "expo-image-picker": "~17.0.11",
+    "expo-media-library": "~18.2.1",
+    "expo-sharing": "~14.0.8",
+    "expo-status-bar": "~3.0.9",
+    "expo-system-ui": "~6.0.9",
+    "react": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-nitro-image": "0.15.1",
+    "react-native-nitro-modules": "0.36.5",
+    "react-native-safe-area-context": "~5.6.2",
+    "react-native-vision-camera": "5.2.2"
+  },
+  "devDependencies": {
+    "@types/react": "~19.1.10",
+    "typescript": "~5.9.2",
+    "vitest": "latest"
+  },
+  "expo": {
+    "doctor": {
+      "appConfigFieldsNotSyncedCheck": {
+        "enabled": false
+      },
+      "reactNativeDirectoryCheck": {
+        "exclude": [
+          "react-native-nitro-image"
+        ]
+      }
+    }
+  },
+  "packageManager": "pnpm@10.28.0"
+}

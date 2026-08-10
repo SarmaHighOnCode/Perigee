@@ -36,7 +36,6 @@ import argparse
 import asyncio
 import json
 import sys
-from collections import deque
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -48,6 +47,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from app.config import get_settings
 from app.db import create_pool, encode_vector
 from app.repositories.person import mask_name
+from app.services.graph_build import brandes_betweenness
 
 SEED = 20260810
 DIM = 512
@@ -188,45 +188,6 @@ def build_identity_cores(rng: np.random.Generator, n: int) -> tuple[np.ndarray, 
 
 def jitter(rng: np.random.Generator, core: np.ndarray, noise: float) -> np.ndarray:
     return normalise(core + noise * normalise(rng.normal(size=DIM)))
-
-
-def brandes_betweenness(nodes: list[int], adjacency: dict[int, set[int]]) -> dict[int, float]:
-    """Unweighted betweenness centrality (Brandes 2001).
-
-    ~35 lines, so networkx is not a dependency for a nightly batch job. O(V·E),
-    which is instant at this scale and is why it never runs in a request path.
-    """
-    cb = dict.fromkeys(nodes, 0.0)
-    for s in nodes:
-        stack: list[int] = []
-        preds: dict[int, list[int]] = {v: [] for v in nodes}
-        sigma = dict.fromkeys(nodes, 0.0)
-        dist = dict.fromkeys(nodes, -1)
-        sigma[s] = 1.0
-        dist[s] = 0
-        queue = deque([s])
-
-        while queue:
-            v = queue.popleft()
-            stack.append(v)
-            for w in adjacency.get(v, ()):
-                if dist[w] < 0:
-                    dist[w] = dist[v] + 1
-                    queue.append(w)
-                if dist[w] == dist[v] + 1:
-                    sigma[w] += sigma[v]
-                    preds[w].append(v)
-
-        delta = dict.fromkeys(nodes, 0.0)
-        while stack:
-            w = stack.pop()
-            for v in preds[w]:
-                delta[v] += (sigma[v] / sigma[w]) * (1 + delta[w]) if sigma[w] else 0.0
-            if w != s:
-                cb[w] += delta[w]
-
-    scale = 1.0 / ((len(nodes) - 1) * (len(nodes) - 2)) if len(nodes) > 2 else 1.0
-    return {v: c * scale for v, c in cb.items()}
 
 
 async def seed(persons_n: int, cases_n: int, reset: bool) -> int:

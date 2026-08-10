@@ -113,19 +113,36 @@ async def test_hnsw_index_is_used(clean_db):
     What a code change CAN break is usability: if the ORDER BY expression drifts
     from the index expression, or the partial-index predicate stops matching,
     the index becomes unusable and the system silently scans more of the table
-    forever. Disabling the sequential and bitmap paths isolates exactly that —
-    they become expensive, not impossible, so the planner still refuses the
-    HNSW index if it genuinely cannot serve the query. Seeing it in the plan
-    therefore proves usability.
+    forever.
+
+    Isolating that requires removing EVERY cheaper alternative, not just the
+    obvious ones. Disabling seq and bitmap scans alone is not enough: the
+    planner simply reaches the rows through idx_fe_model, the plain btree on
+    model_id, and sorts — which is cheap at 400 rows and tells us nothing about
+    whether HNSW was viable. That btree is therefore dropped too, inside a
+    transaction that always rolls back.
     """
     async with clean_db.acquire() as conn:
         await _seed_embeddings(conn, 400)
-        async with conn.transaction():
-            # SET LOCAL: dies with the transaction, so it cannot leak onto a
-            # pooled connection and affect an unrelated query.
+
+        # Every cheaper route to the rows is removed so that only a usable
+        # HNSW index can satisfy the query:
+        #   * seq scan and bitmap scan are disabled;
+        #   * idx_fe_model (the plain btree on model_id) is DROPPED, because
+        #     otherwise the planner satisfies the filter through it and sorts,
+        #     which is cheap at this size and hides whether HNSW was viable.
+        #
+        # The DROP happens inside a transaction that is always rolled back, so
+        # the schema is untouched and no other test can observe it.
+        transaction = conn.transaction()
+        await transaction.start()
+        try:
+            await conn.execute("DROP INDEX idx_fe_model")
             await conn.execute("SET LOCAL enable_seqscan = off")
             await conn.execute("SET LOCAL enable_bitmapscan = off")
             plan = await vector_search.explain(conn, unit_vector(7), MODEL_ID, 5)
+        finally:
+            await transaction.rollback()
 
     assert "idx_fe_hnsw_w600k_r50" in plan, (
         "HNSW index is NOT USABLE by the search query. Two causes, both silent "

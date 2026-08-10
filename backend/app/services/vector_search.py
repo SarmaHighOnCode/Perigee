@@ -7,13 +7,22 @@ SILENTLY -- no error, just a system that is slower or less correct than it looks
    The index is on `(embedding::halfvec(512)) halfvec_cosine_ops`, so the
    ORDER BY must be `embedding::halfvec(512) <=> <halfvec>`.
 
-2. THE PARTIAL-INDEX PREDICATE MUST BE A LITERAL, NOT A PARAMETER.
+2. THE PARTIAL-INDEX PREDICATE IS INLINED, NOT PARAMETERISED.
    The index carries `WHERE model_id = 'insightface/w600k_r50@1'`. Postgres
    only uses a partial index when it can PROVE the query's predicate implies
-   the index's. It cannot prove that about a parameter whose value is unknown
-   at plan time, so `WHERE model_id = $2` silently excludes the index from
-   consideration and the planner falls back to the plain btree plus a sort.
-   The model_id is therefore inlined as a literal -- see `_search_sql`.
+   the index's, and it cannot prove anything about a parameter whose value is
+   unknown at plan time.
+
+   With a CUSTOM plan the value is substituted and the proof succeeds, so a
+   parameter usually works. But `plan_cache_mode` defaults to `auto`: after
+   five executions of a prepared statement Postgres may switch to a GENERIC
+   plan, where the value is unknown again and the partial index drops out of
+   consideration. asyncpg reuses prepared statements, so a long-running server
+   is exactly where that switch happens — the index would work in testing and
+   quietly stop being used in production.
+
+   Inlining removes the failure mode rather than relying on the planner
+   continuing to prefer custom plans. See `_search_sql`.
 
 3. DE-DUPLICATION BY PERSON CANNOT HAPPEN IN THE INDEX SCAN.
    A person has several embeddings (multi-angle enrolment) and we want their
@@ -77,8 +86,9 @@ class UnsafeModelIdError(ValueError):
 def _search_sql(model_id: str) -> str:
     """Build (and cache) the search SQL for one model_id.
 
-    The value is inlined rather than parameterised so the planner can match the
-    partial index predicate (see note 2 above). Injection is not reachable:
+    The value is inlined rather than parameterised so the partial index stays
+    matchable under a generic plan (see note 2 above). Injection is not
+    reachable:
     callers validate model_id against the config allowlist before this point,
     and the pattern below independently rejects anything containing a quote,
     backslash, or whitespace. The result is cached per model, so the formatting

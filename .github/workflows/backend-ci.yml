@@ -131,36 +131,86 @@ jobs:
       - name: Seeding is idempotent
         run: python scripts/seed_synthetic.py --persons 200 --cases 120 | grep -q "already has"
 
-      - name: Prove the HNSW index is used
-        # At DEFAULT planner settings -- no forcing. Two silent failure modes:
-        # the ORDER BY drifting from the index expression, and model_id being
-        # passed as a parameter (a partial index cannot be matched against a
-        # value unknown at plan time). Either leaves the index permanently
-        # unused while the API keeps returning correct answers.
+      - name: Prove the HNSW index is chosen at realistic volume
+        # The db test proves the index is USABLE (docs/ tests explain why it
+        # cannot assert more at 400 rows -- a tiny table is genuinely cheaper to
+        # scan, and the planner is right to prefer that).
+        #
+        # This step answers the other half: at a volume where the index SHOULD
+        # win, does the planner actually pick it with no forcing at all? Vectors
+        # are generated in numpy and bulk-loaded, which is far faster than
+        # generating them in SQL.
         run: |
           python - <<'PY'
-          import asyncio, json, pathlib, sys
+          import asyncio, json, pathlib, sys, time
           sys.path.insert(0, ".")
+          import numpy as np
           from app.config import get_settings
-          from app.db import create_pool
+          from app.db import create_pool, encode_vector
           from app.services import vector_search
+
+          TARGET = 20_000
 
           async def main():
               fixtures = json.loads(pathlib.Path("fixtures/probe_vectors.json").read_text())
               probe = fixtures["fixtures"]["FIXTURE_STRONG"]["embedding"]
+              model_id = fixtures["model_id"]
               pool = await create_pool(get_settings())
+
               async with pool.acquire() as conn:
+                  started = time.perf_counter()
+                  rng = np.random.default_rng(7)
+
+                  # Bulk-build with the index dropped, then rebuild: an HNSW
+                  # graph builds far faster in one pass than by 20k incremental
+                  # inserts. The definition is read back from the catalogue
+                  # rather than retyped, so it cannot drift from the migration.
+                  indexdef = await conn.fetchval(
+                      "SELECT indexdef FROM pg_indexes WHERE indexname = 'idx_fe_hnsw_w600k_r50'"
+                  )
+                  assert indexdef, "the HNSW index is missing"
+                  await conn.execute("DROP INDEX idx_fe_hnsw_w600k_r50")
+
+                  person_ids = await conn.fetch(
+                      """
+                      INSERT INTO person (full_name, masked_name, dataset_mode)
+                      SELECT 'Bulk ' || g, 'B*** ' || g, 'synthetic'
+                      FROM generate_series(1, $1) g
+                      RETURNING person_id
+                      """,
+                      TARGET,
+                  )
+                  vectors = rng.normal(size=(TARGET, 512))
+                  vectors /= np.linalg.norm(vectors, axis=1, keepdims=True)
+                  await conn.executemany(
+                      """
+                      INSERT INTO face_embedding (person_id, model_id, embedding, quality_score)
+                      VALUES ($1, $2, $3::text::vector(512), 0.9)
+                      """,
+                      [
+                          (r["person_id"], model_id, encode_vector(vectors[i].tolist()))
+                          for i, r in enumerate(person_ids)
+                      ],
+                  )
+
+                  await conn.execute(indexdef)
                   await conn.execute("ANALYZE face_embedding")
-                  plan = await vector_search.explain(conn, probe, fixtures["model_id"], 5)
+                  total = await conn.fetchval(
+                      "SELECT count(*) FROM face_embedding WHERE model_id = $1", model_id
+                  )
+                  print(f"loaded to {total} embeddings in {time.perf_counter() - started:.1f}s")
+
+                  # No SET LOCAL, no forcing. Default planner settings.
+                  plan = await vector_search.explain(conn, probe, model_id, 5)
+
               await pool.close()
+              print("\n".join(line[:200] for line in plan.splitlines()))
 
-              # Trim the echoed probe vector; it is 512 floats of noise.
-              print("\n".join(line[:180] for line in plan.splitlines()))
-
-              assert "idx_fe_hnsw_w600k_r50" in plan, "HNSW INDEX NOT USED"
+              assert "idx_fe_hnsw_w600k_r50" in plan, (
+                  f"planner did NOT choose the HNSW index at {total} rows"
+              )
               assert "Seq Scan on face_embedding" not in plan, "SEQUENTIAL SCAN"
-              assert "Bitmap Index Scan on idx_fe_model" not in plan, "FELL BACK TO THE BTREE"
-              print("\nOK: HNSW index scan confirmed at default planner settings")
+              print(f"\nOK: planner chose the HNSW index unaided at {total} embeddings")
 
           asyncio.run(main())
           PY

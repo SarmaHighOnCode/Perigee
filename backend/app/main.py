@@ -57,7 +57,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             log.error("configuration error: %s", problem)
         raise RuntimeError(f"invalid configuration: {'; '.join(problems)}")
 
-    app.state.limiters = Limiters(settings)
     app.state.pool = None
 
     if settings.database_url:
@@ -71,9 +70,20 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         # Allows contract/unit tests to import the app without a database.
         log.warning("DATABASE_URL is not set; database-backed routes will fail")
 
+    # Built after the pool: the shared backend needs it, and asking for
+    # "postgres" without a database has to be a startup failure rather than a
+    # silent fall back to per-instance counters.
+    if settings.rate_limit_backend == "postgres" and app.state.pool is None:
+        raise RuntimeError("RATE_LIMIT_BACKEND=postgres requires DATABASE_URL")
+    app.state.limiters = Limiters(settings, app.state.pool)
+
     log.info(
         "perigee-core started",
-        extra={"dataset_mode": settings.dataset_mode, "app_env": settings.app_env},
+        extra={
+            "dataset_mode": settings.dataset_mode,
+            "app_env": settings.app_env,
+            "rate_limit_backend": settings.rate_limit_backend,
+        },
     )
     try:
         yield

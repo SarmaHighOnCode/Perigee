@@ -48,6 +48,7 @@ from app.config import get_settings
 from app.db import create_pool, encode_vector
 from app.repositories.person import mask_name
 from app.services.graph_build import brandes_betweenness
+from app.services.scoring import band_for
 
 SEED = 20260810
 DIM = 512
@@ -447,9 +448,14 @@ async def seed(persons_n: int, cases_n: int, reset: bool) -> int:
     print(f"seeded {persons_n} persons, {cases_n} cases, ~{edge_count} edges")
     print(f"fixtures written to {out}")
     print()
-    print(f"{'FIXTURE':<22} {'TOP SIM':>8}  EXPECTED BAND")
+    print(f"{'FIXTURE':<22} {'TOP SIM':>8} {'GAP':>7}  VERIFIED BAND")
     for name, f in fixtures["fixtures"].items():
-        print(f"{name:<22} {f['observed_top_similarity']:>8.4f}  {f['expected_band']}")
+        gap = f.get("observed_score_gap")
+        gap_text = "-" if gap is None else f"{gap:.4f}"
+        print(
+            f"{name:<22} {f['observed_top_similarity']:>8.4f} "
+            f"{gap_text:>7}  {f['expected_band']}"
+        )
     return 0
 
 
@@ -464,40 +470,124 @@ async def build_fixtures(
     the RNG is seeded.
     """
 
-    async def top_similarity(vec: np.ndarray) -> float:
-        value = await conn.fetchval(
+    async def top_persons(vec: np.ndarray, k: int = 5) -> list[tuple[str, float]]:
+        """Best similarity per distinct person, descending.
+
+        Per person, not per embedding: a person enrolled from several angles
+        would otherwise occupy the first two ranks and make every probe look
+        ambiguous against itself.
+        """
+        rows = await conn.fetch(
             """
-            SELECT 1 - MIN(embedding <=> $1::text::vector(512))
-            FROM   face_embedding WHERE model_id = $2
+            SELECT person_id, max(1 - (embedding <=> $1::text::vector(512))) AS sim
+            FROM   face_embedding
+            WHERE  model_id = $2
+            GROUP  BY person_id
+            ORDER  BY sim DESC
+            LIMIT  $3
             """,
             encode_vector([float(x) for x in vec]),
             model_id,
+            k,
         )
-        return float(value) if value is not None else 0.0
+        return [(str(r["person_id"]), float(r["sim"])) for r in rows]
 
-    specs = [
-        ("FIXTURE_STRONG", 0.60, "STRONG"),
-        ("FIXTURE_REVIEW", 1.05, "REVIEW"),
-        ("FIXTURE_AMBIGUOUS", 0.62, "STRONG"),
-    ]
+    # Target the MIDPOINT of each band, so a fixture cannot sit a thousandth
+    # inside a boundary and flip band when a threshold is retuned.
+    band_targets = {
+        "STRONG": (settings.band_review + 1.0) / 2,
+        "REVIEW": (settings.band_weak + settings.band_review) / 2,
+    }
+    # Noise is SOLVED, not declared. Hardcoded noise levels silently drift out
+    # of their band whenever the manifold weights or corpus size change — which
+    # is exactly what had happened to FIXTURE_REVIEW.
+    noise_scan = [round(0.20 + 0.02 * i, 2) for i in range(101)]
 
     fixtures: dict[str, Any] = {}
-    for idx, (name, noise, expected) in enumerate(specs):
-        # FIXTURE_AMBIGUOUS targets the planted lookalike pair (cores 0 and 1).
-        core = cores[0] if name == "FIXTURE_AMBIGUOUS" else cores[idx * 7 % len(cores)]
-        vec = jitter(rng, core, noise)
+    for idx, (name, expected) in enumerate(
+        [("FIXTURE_STRONG", "STRONG"), ("FIXTURE_REVIEW", "REVIEW")]
+    ):
+        core = cores[idx * 7 % len(cores)]
+        # One direction, drawn once and rescaled, so the search consumes a
+        # fixed number of RNG draws and the output stays reproducible.
+        direction = normalise(rng.normal(size=DIM))
+
+        best: tuple[float, float, np.ndarray] | None = None
+        for noise in noise_scan:
+            vec = normalise(core + noise * direction)
+            sim = (await top_persons(vec, 1))[0][1]
+            if band_for(sim, settings) != expected:
+                continue
+            distance = abs(sim - band_targets[expected])
+            if best is None or distance < best[0]:
+                best = (distance, sim, vec)
+
+        if best is None:
+            raise RuntimeError(
+                f"{name}: no noise level in {noise_scan[0]}..{noise_scan[-1]} lands in "
+                f"band {expected}. The manifold weights in this module need retuning."
+            )
+
+        _, sim, vec = best
         fixtures[name] = {
             "embedding": [round(float(x), 8) for x in vec],
             "expected_band": expected,
-            "observed_top_similarity": round(await top_similarity(vec), 4),
+            "observed_top_similarity": round(sim, 4),
         }
+
+    # FIXTURE_AMBIGUOUS exists to trigger the ambiguity path (score_gap <
+    # ambiguity_gap) against the planted lookalike pair — two DIFFERENT people
+    # the vectors cannot separate. Landing in a particular band is not the
+    # point; a small gap between rank 1 and rank 2 is.
+    #
+    # It previously jittered off core 0 alone, which just produced a strong
+    # match to person 0 with a gap of ~0.16 — over three times the threshold,
+    # so the path it was written to exercise never fired.
+    #
+    # The gap is NOT minimised. The blend is symmetric about weight 0.5, where
+    # the two people score identically to within float error (~6e-8) — the rank
+    # order there is decided by floating-point noise and flips between pgvector
+    # builds, which makes a fixture that is supposed to be reproducible not be.
+    # Aim for HALF the threshold instead: comfortably inside the ambiguity path,
+    # comfortably outside a coin-flip.
+    target_gap = settings.ambiguity_gap / 2
+    blend_scan = [round(0.30 + 0.01 * i, 2) for i in range(41)]
+    best_pair: tuple[float, float, list[tuple[str, float]], np.ndarray] | None = None
+    for weight in blend_scan:
+        vec = normalise((1.0 - weight) * cores[0] + weight * cores[1])
+        ranked = await top_persons(vec, 3)
+        if len(ranked) < 2:
+            continue
+        gap = ranked[0][1] - ranked[1][1]
+        # That same symmetry means every gap has two solutions. Strict `<`
+        # keeps the lower weight, so the choice does not depend on dict order.
+        if best_pair is None or abs(gap - target_gap) < abs(best_pair[0] - target_gap):
+            best_pair = (gap, weight, ranked, vec)
+
+    if best_pair is None or not 0.0 < best_pair[0] < settings.ambiguity_gap:
+        observed = "no candidates" if best_pair is None else f"{best_pair[0]:.6f}"
+        raise RuntimeError(
+            f"FIXTURE_AMBIGUOUS: best achievable rank1-rank2 gap was {observed}, which is "
+            f"not strictly inside (0, ambiguity_gap={settings.ambiguity_gap}). The planted "
+            f"lookalike pair in build_identity_cores() needs retuning."
+        )
+
+    gap, _weight, ranked, vec = best_pair
+    fixtures["FIXTURE_AMBIGUOUS"] = {
+        "embedding": [round(float(x), 8) for x in vec],
+        "expected_band": band_for(ranked[0][1], settings),
+        "observed_top_similarity": round(ranked[0][1], 4),
+        "observed_score_gap": round(gap, 4),
+        "triggers_ambiguity_path": True,
+        "distinct_persons": [p for p, _ in ranked[:2]],
+    }
 
     # A genuine no-match: a fresh identity core that was never enrolled.
     # Verified, because the maximum of ~800 cross-identity similarities has a
     # tail that can drift above the floor by chance.
     for attempt in range(50):
         candidate = normalise(rng.normal(size=DIM))
-        observed = await top_similarity(candidate)
+        observed = (await top_persons(candidate, 1))[0][1]
         if observed < settings.band_no_match:
             fixtures["FIXTURE_NO_MATCH"] = {
                 "embedding": [round(float(x), 8) for x in candidate],

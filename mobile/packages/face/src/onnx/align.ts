@@ -80,7 +80,7 @@ function validateLandmarks(points: readonly Point[], name: string): { x: number;
   return { x: meanX, y: meanY };
 }
 
-function validateTransform(transform: SimilarityTransform): number {
+function validateTransform(transform: SimilarityTransform): void {
   if (transform === null || typeof transform !== 'object') {
     throw new AlignmentError('transform must be an object');
   }
@@ -89,11 +89,9 @@ function validateTransform(transform: SimilarityTransform): number {
   assertFinite(transform.tx, 'transform.tx');
   assertFinite(transform.ty, 'transform.ty');
 
-  const determinant = transform.a * transform.a + transform.b * transform.b;
-  if (!Number.isFinite(determinant) || determinant <= 0) {
+  if (Math.max(Math.abs(transform.a), Math.abs(transform.b)) === 0) {
     throw new AlignmentError('transform must be invertible');
   }
-  return determinant;
 }
 
 function assertDimension(value: number, name: string): void {
@@ -155,12 +153,24 @@ export function estimateSimilarityTransform(
 }
 
 export function invertSimilarityTransform(transform: SimilarityTransform): SimilarityTransform {
-  const determinant = validateTransform(transform);
+  validateTransform(transform);
+  const scale = Math.max(Math.abs(transform.a), Math.abs(transform.b));
+  const scaledA = transform.a / scale;
+  const scaledB = transform.b / scale;
+  const scaledNormSquared = scaledA * scaledA + scaledB * scaledB;
+  const inverseScale = 1 / scale;
+  if (!Number.isFinite(inverseScale) || inverseScale <= 0) {
+    throw new AlignmentError('transform must have a representable inverse');
+  }
+
+  const inverseFactor = inverseScale / scaledNormSquared;
+  const inverseA = scaledA * inverseFactor;
+  const inverseB = -scaledB * inverseFactor;
   const inverse = {
-    a: transform.a / determinant,
-    b: -transform.b / determinant,
-    tx: -(transform.a * transform.tx + transform.b * transform.ty) / determinant,
-    ty: (transform.b * transform.tx - transform.a * transform.ty) / determinant,
+    a: inverseA,
+    b: inverseB,
+    tx: -inverseA * transform.tx + inverseB * transform.ty,
+    ty: -inverseB * transform.tx - inverseA * transform.ty,
   };
   validateTransform(inverse);
   return inverse;

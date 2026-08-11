@@ -84,6 +84,40 @@ describe('five-point similarity transform', () => {
     expect(roundTrip.y).toBeCloseTo(point.y, 10);
   });
 
+  it('inverts large finite scales without squared overflow', () => {
+    const inverse = invertSimilarityTransform({
+      a: 1e200,
+      b: 1e200,
+      tx: 3e200,
+      ty: -1e200,
+    });
+
+    expect(inverse.a / 5e-201).toBeCloseTo(1, 12);
+    expect(inverse.b / -5e-201).toBeCloseTo(1, 12);
+    expect(inverse.tx).toBeCloseTo(-1, 12);
+    expect(inverse.ty).toBeCloseTo(2, 12);
+  });
+
+  it('inverts small finite scales without squared underflow', () => {
+    const inverse = invertSimilarityTransform({
+      a: 1e-200,
+      b: 1e-200,
+      tx: 3e-200,
+      ty: -1e-200,
+    });
+
+    expect(inverse.a / 5e199).toBeCloseTo(1, 12);
+    expect(inverse.b / -5e199).toBeCloseTo(1, 12);
+    expect(inverse.tx).toBeCloseTo(-1, 12);
+    expect(inverse.ty).toBeCloseTo(2, 12);
+  });
+
+  it('rejects an inverse whose translated offset is not finite', () => {
+    expect(() =>
+      invertSimilarityTransform({ a: 1e-200, b: 0, tx: 1e200, ty: 0 }),
+    ).toThrowError(/transform\.tx must be finite/);
+  });
+
   it('rejects malformed, non-finite, and degenerate landmark sets', () => {
     const repeated = Array.from({ length: 5 }, () => ({ x: 4, y: 9 }));
 

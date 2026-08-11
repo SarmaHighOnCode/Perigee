@@ -132,6 +132,46 @@ and it still reads `embedding::halfvec(512)`.
 
 ---
 
+## 9. Case linking and relationship writes (new endpoints)
+
+**Spec:** [03 — API Spec](03-API-SPEC.md) has no endpoint for linking a person to
+a case, or for recording a relationship between two people.
+
+**Built:** three endpoints —
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /v1/cases` | Case picker for Enroll. Metadata only, no names. |
+| `POST /v1/person/{id}/cases` | Link a person to an existing case, with a role. |
+| `POST /v1/person/{id}/relationships` | Record an evidenced edge between two people. |
+
+**Why.** Perigee Enroll collects both and had nowhere to send them. Its own
+verification report records the consequence: *"The backend PR has no case-link or
+relationship-create endpoint... Case and relationship annotations remain visibly
+local."* An enrolled person therefore arrived with no case history and no graph
+edges — which renders in the network view as *"no known associates"* rather than
+*"not yet recorded"*. A misleading answer to an investigative question is worse
+than an error.
+
+Three constraints carried over from the data model rather than reinvented:
+
+- **`evidence_case_ids` is required and must reference real cases.** An edge
+  asserting two people are connected without a citable file is an unfalsifiable
+  accusation ([11 §1](11-GRAPH-INTELLIGENCE.md)).
+- **`co_accused` cannot be written by hand.** It is derived from shared cases by
+  `compute_edges.py`, and a manual one would be silently overwritten on the next
+  rebuild. Link the case instead and let the edge fall out of the evidence.
+- **Re-submission merges evidence rather than replacing it.** A second operator
+  citing a different case strengthens the same claim; both endpoints are
+  idempotent so a retried draft cannot duplicate.
+
+`degree` is refreshed inline for the two endpoints of a new edge. Betweenness and
+community are not — they are global, cost O(V·E), and stay in
+`compute_node_metrics.py`. Leaving `degree` stale would make a freshly linked
+person render as isolated.
+
+---
+
 ## Not deviations
 
 For the avoidance of doubt, these were implemented exactly as specified and must stay that way:

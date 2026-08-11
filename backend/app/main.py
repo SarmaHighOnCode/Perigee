@@ -26,7 +26,7 @@ from app.errors import (
     unhandled_error_handler,
     validation_error_handler,
 )
-from app.routers import audit, config, graph, health, person, public, search
+from app.routers import audit, config, graph, health, person, public, records, search
 from app.services.rate_limit import Limiters
 
 log = logging.getLogger("perigee")
@@ -127,6 +127,7 @@ def create_app() -> FastAPI:
     app.include_router(config.router)
     app.include_router(search.router)
     app.include_router(person.router)
+    app.include_router(records.router)
     app.include_router(graph.router)
     app.include_router(audit.router)
     app.include_router(public.router)

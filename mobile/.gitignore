@@ -1,0 +1,10 @@
+node_modules/
+node_modules.old/
+apps/*/node_modules/
+apps/*/.expo/
+apps/*/*-emulator.png
+apps/*/android/.gradle/
+apps/*/android/build/
+apps/*/android/app/build/
+packages/*/node_modules/
+packages/*/.vite/

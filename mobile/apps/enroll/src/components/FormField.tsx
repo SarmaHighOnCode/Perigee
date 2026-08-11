@@ -1,0 +1,42 @@
+import { palette, space, structure } from '@perigee/design-tokens';
+import type { ComponentProps } from 'react';
+import { StyleSheet, Text, TextInput, View } from 'react-native';
+
+interface FormFieldProps extends Pick<ComponentProps<typeof TextInput>,
+  'autoCapitalize' | 'autoCorrect' | 'keyboardType' | 'multiline' | 'secureTextEntry'> {
+  label: string;
+  value: string;
+  onChangeText: (value: string) => void;
+  hint?: string;
+  placeholder?: string;
+}
+
+export function FormField({ label, value, onChangeText, hint, multiline, ...inputProps }: FormFieldProps) {
+  return (
+    <View style={styles.field}>
+      <Text style={styles.label}>{label}</Text>
+      <TextInput
+        accessibilityLabel={label}
+        multiline={multiline}
+        onChangeText={onChangeText}
+        placeholderTextColor="#666"
+        style={[styles.input, multiline && styles.multiline]}
+        value={value}
+        {...inputProps}
+      />
+      {hint ? <Text style={styles.hint}>{hint}</Text> : null}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  field: { gap: space[2] },
+  label: { color: palette.ink, fontFamily: 'MartianMonoBold', fontSize: 11, letterSpacing: 1 },
+  input: {
+    backgroundColor: palette.paper, borderColor: palette.ink, borderRadius: 4,
+    borderWidth: structure.borderWidth, color: palette.ink, fontFamily: 'PublicSans',
+    fontSize: 16, minHeight: 56, paddingHorizontal: space[3], paddingVertical: space[3],
+  },
+  multiline: { minHeight: 100, textAlignVertical: 'top' },
+  hint: { color: palette.ink, fontFamily: 'PublicSans', fontSize: 12, lineHeight: 17 },
+});

@@ -1,7 +1,7 @@
 import type { StyleProp, ViewStyle } from 'react-native';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { fonts, palette, scale, space, structure } from '@perigee/design-tokens';
+import { fonts, palette, radii, scale, space, structure } from '@perigee/design-tokens';
 
 import { Brut } from './Brut';
 import { officerChipLabel } from './logic';
@@ -40,7 +40,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   surface: {
-    borderRadius: structure.radius.pill,
+    borderRadius: radii.pill,
     paddingHorizontal: space[3],
     paddingVertical: space[1],
   },

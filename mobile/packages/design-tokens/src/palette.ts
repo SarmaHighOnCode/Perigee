@@ -20,6 +20,9 @@ export const palette = {
 } as const;
 
 /** A palette key usable as a surface fill or an accent. */
-export type Tone = keyof typeof palette;
+export type PaletteTone = keyof typeof palette;
+export type Tone = PaletteTone;
+/** `neutral` is a mobile UI semantic alias for the paper surface. */
+export type SemanticTone = PaletteTone | 'neutral';
 
-export type PaletteColour = (typeof palette)[Tone];
+export type PaletteColour = (typeof palette)[PaletteTone];

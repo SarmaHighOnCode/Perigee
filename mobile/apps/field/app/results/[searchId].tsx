@@ -1,216 +1,173 @@
+import type { Decision } from '@perigee/api-client';
+import { palette, space, structure } from '@perigee/design-tokens';
+import { Button, Card, Screen, StatusChip, SyntheticBanner } from '@perigee/ui';
+import { useQuery } from '@tanstack/react-query';
 import { router, useLocalSearchParams, useNavigation } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, BackHandler, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import type { Candidate, SearchDetail } from '@perigee/api-client';
-import { palette, space } from '@perigee/design-tokens';
-import { Banner, Button, CandidateTile } from '@perigee/ui';
+import { usePerigeeClient } from '../../src/api/usePerigeeClient';
+import { buildDecision } from '../../src/domain/screening';
+import { useFieldStore } from '../../src/state/fieldStore';
 
-import { getClient } from '../../lib/perigee';
-import { useSession } from '../../lib/session';
-
-export default function Results() {
+export default function ResultsScreen() {
   const { searchId } = useLocalSearchParams<{ searchId: string }>();
-  const { shift } = useSession();
+  const client = usePerigeeClient();
   const navigation = useNavigation();
-
-  const [detail, setDetail] = useState<SearchDetail | null>(null);
-  const [selected, setSelected] = useState<number | null>(null);
+  const storedSearch = useFieldStore((state) => state.search);
+  const setSearch = useFieldStore((state) => state.setSearch);
+  const addActivity = useFieldStore((state) => state.addActivity);
+  const resetScreening = useFieldStore((state) => state.resetScreening);
+  const [selectedRank, setSelectedRank] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // How long the human actually looked. A cluster of sub-second confirmations
-  // is not careful review, and detecting that costs one integer.
   const renderedAt = useRef(Date.now());
+  const resolved = useRef(false);
+  const detailQuery = useQuery({
+    queryKey: ['search', searchId],
+    queryFn: () => client.searchDetail(searchId),
+    enabled: storedSearch?.search_id !== searchId,
+  });
+  const result = storedSearch?.search_id === searchId ? storedSearch : detailQuery.data;
+  const isAmbiguous = result && 'ambiguous' in result ? result.ambiguous : false;
 
-  useEffect(() => {
-    if (!shift || !searchId) return;
-    void getClient(shift.officerId)
-      .getSearch(searchId)
-      .then((result) => {
-        setDetail(result);
-        renderedAt.current = Date.now();
-      })
-      .catch((caught: unknown) =>
-        setError(caught instanceof Error ? caught.message : String(caught)),
-      );
-  }, [searchId, shift]);
-
-  const decide = useCallback(
-    async (decision: 'CONFIRMED' | 'NO_MATCH' | 'INCONCLUSIVE' | 'ABORTED') => {
-      if (!shift || !searchId || submitting) return;
-      setSubmitting(true);
-      try {
-        await getClient(shift.officerId).decide(searchId, {
-          decision,
-          ...(decision === 'CONFIRMED' && selected !== null
-            ? { confirmed_rank: selected }
-            : {}),
-          latency_ms: Date.now() - renderedAt.current,
+  const recordDecision = useCallback(async (decision: Decision) => {
+    if (!result || submitting) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const payload = buildDecision({
+        decision,
+        ...(selectedRank !== null ? { confirmedRank: selectedRank } : {}),
+        renderedAtMs: renderedAt.current,
+        decidedAtMs: Date.now(),
+      });
+      await client.decide(searchId, payload);
+      resolved.current = true;
+      addActivity({
+        id: `${searchId}-${decision}`,
+        title: decision.replace('_', ' '),
+        detail: `${result.candidates.length} candidates reviewed · search ${searchId}`,
+        tone: decision === 'NO_MATCH' ? 'clear' : decision === 'CONFIRMED' ? 'alert' : 'warn',
+        createdAt: new Date().toISOString(),
+      });
+      if (decision === 'CONFIRMED') {
+        const candidate = result.candidates.find((item) => item.rank === selectedRank);
+        if (!candidate) throw new Error('The selected candidate is no longer available');
+        router.replace({
+          pathname: '/person/[id]',
+          params: { id: candidate.person_id, searchId },
         });
-
-        if (decision === 'CONFIRMED' && detail) {
-          const person = detail.candidates.find((c) => c.rank === selected)?.person_id;
-          router.replace(`/person/${person}?search_id=${searchId}`);
-        } else {
-          router.replace('/capture');
-        }
-      } catch (caught) {
-        setError(caught instanceof Error ? caught.message : String(caught));
-      } finally {
-        setSubmitting(false);
+      } else {
+        setSearch(null);
+        resetScreening();
+        router.replace('/(tabs)/home');
       }
-    },
-    [detail, searchId, selected, shift, submitting],
-  );
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : String(caught));
+    } finally {
+      setSubmitting(false);
+    }
+  }, [addActivity, client, resetScreening, result, searchId, selectedRank, setSearch, submitting]);
 
-  // A search does not close until a human adjudicates it. Leaving requires an
-  // explicit ABORTED, which is itself recorded. This is the load-bearing
-  // safety property of the product and it lives one careless navigation
-  // refactor away from being broken.
-  useEffect(() => {
-    const onBack = () => {
+  useEffect(() => navigation.addListener('beforeRemove', (event) => {
+    if (resolved.current) return;
+    event.preventDefault();
+    Alert.alert(
+      'DECISION REQUIRED',
+      'This search is logged. Return to the result or explicitly record ABORTED.',
+      [
+        { text: 'RETURN TO DECISION', style: 'cancel' },
+        { text: 'RECORD ABORTED', style: 'destructive', onPress: () => void recordDecision('ABORTED') },
+      ],
+    );
+  }), [navigation, recordDecision]);
+
+  function confirmSelected() {
+    if (selectedRank === null) return;
+    if (isAmbiguous) {
       Alert.alert(
-        'A DECISION IS REQUIRED',
-        'This search is logged and cannot be abandoned silently. Recording "inconclusive" is a valid outcome.',
+        'AMBIGUOUS SCORES',
+        'The leading candidates are close. Compare the records again before recording confirmation.',
         [
-          { text: 'STAY', style: 'cancel' },
-          { text: 'RECORD ABORTED', style: 'destructive', onPress: () => void decide('ABORTED') },
+          { text: 'REVIEW AGAIN', style: 'cancel' },
+          { text: 'CONFIRM SELECTED', onPress: () => void recordDecision('CONFIRMED') },
         ],
       );
-      return true;
-    };
-
-    const subscription = BackHandler.addEventListener('hardwareBackPress', onBack);
-    const unsubscribe = navigation.addListener('beforeRemove', (event) => {
-      if (event?.data?.action?.type === 'REPLACE') return;
-      event.preventDefault();
-      onBack();
-    });
-
-    return () => {
-      subscription.remove();
-      unsubscribe();
-    };
-  }, [decide, navigation]);
-
-  if (error) {
-    return (
-      <View style={styles.page}>
-        <Banner tone="alert" dismissible={false}
-          title={error}
-        />
-      </View>
-    );
+    } else {
+      void recordDecision('CONFIRMED');
+    }
   }
-
-  if (!detail) {
-    return (
-      <View style={styles.page}>
-        <Text style={styles.status}>LOADING CANDIDATES…</Text>
-      </View>
-    );
-  }
-
-  const candidates: Candidate[] = detail.candidates;
-  const ambiguous = detail.score_gap !== null && detail.score_gap < 0.05;
 
   return (
-    <View style={styles.page}>
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <Banner tone="signal" dismissible={false}
-          title="HUMAN VERIFICATION REQUIRED"
-          message="This system does not identify persons."
-        />
-
-        {ambiguous ? (
-          <Banner tone="alert" dismissible={false}
-          title="AMBIGUOUS — TWO SIMILAR CANDIDATES"
-          message="Δ {detail.score_gap?.toFixed(4)} between the top two. Compare carefully."
-        />
-        ) : null}
-
-        {candidates.length === 0 ? (
-          // The outcome this product is actually built around, given the visual
-          // weight to match.
-          <View style={styles.release}>
-            <Text style={styles.releaseTitle}>NO CANDIDATES</Text>
-            <Text style={styles.releaseBody}>
-              No record in the database resembles this person.
-            </Text>
-          </View>
-        ) : (
-          <>
-            <Text style={styles.count}>
-              {candidates.length} CANDIDATES
-              {detail.score_gap !== null ? ` · Δ ${detail.score_gap.toFixed(4)}` : ''}
-            </Text>
-            {candidates.map((candidate) => (
-              <CandidateTile
-                key={candidate.rank}
-                name={candidate.masked_name}
-                similarity={candidate.similarity}
-                band={candidate.band}
-                {...(candidate.mugshot_url ? { imageUri: candidate.mugshot_url } : {})}
-                meta={[candidate.age_band, candidate.district].filter(Boolean).join(' · ')}
-                selected={selected === candidate.rank}
-                ambiguous={ambiguous && candidate.rank <= 2}
-                onPress={() => setSelected(candidate.rank)}
-              />
-            ))}
-          </>
-        )}
-      </ScrollView>
-
-      {/* NO MATCH is visually equal to CONFIRM, never a secondary link. A system
-          that makes "found nothing" feel like failure will be used until it
-          finds something. */}
-      <View style={styles.actions}>
-        <Button
-          variant="solid"
-          tone="clear"
-          size="primary"
-          disabled={submitting}
-          onPress={() => void decide('NO_MATCH')}
-          style={styles.action}
-          label="NO MATCH"
-        />
-        <Button
-          variant="solid"
-          tone="signal"
-          size="primary"
-          disabled={submitting || selected === null}
-          onPress={() => void decide('CONFIRMED')}
-          style={styles.action}
-          label="CONFIRM SELECTED"
-        />
-      </View>
-    </View>
+    <Screen eyebrow="HUMAN DECISION REQUIRED" title="Candidate review">
+      <SyntheticBanner />
+      {!result && detailQuery.isLoading ? <StatusChip label="LOADING FROZEN CANDIDATES" tone="data" /> : null}
+      {detailQuery.error ? (
+        <Card eyebrow="Cannot retrieve search" title="Results unavailable" tone="alert">
+          <Text style={styles.copy}>{detailQuery.error instanceof Error ? detailQuery.error.message : String(detailQuery.error)}</Text>
+        </Card>
+      ) : null}
+      {result?.candidates.length === 0 ? (
+        <Card eyebrow="ZERO CANDIDATES RETURNED" title="No candidates · release" tone="clear">
+          <Text style={styles.release}>RELEASE</Text>
+          <Text style={styles.copy}>The best score was below the configured no-match floor. Record the human outcome to close this search.</Text>
+          <Button label="RECORD NO MATCH" loading={submitting} onPress={() => void recordDecision('NO_MATCH')} size="primary" tone="clear" />
+        </Card>
+      ) : null}
+      {result?.candidates.map((candidate) => {
+        const selected = candidate.rank === selectedRank;
+        const tone = candidate.band === 'STRONG' ? palette.alert : candidate.band === 'REVIEW' ? palette.data : palette.warn;
+        return (
+          <Pressable
+            accessibilityRole="radio"
+            accessibilityState={{ checked: selected }}
+            key={candidate.person_id}
+            onPress={() => setSelectedRank(candidate.rank)}
+            style={[styles.candidate, { backgroundColor: tone }, selected && styles.selected]}
+          >
+            <View style={styles.rankBlock}>
+              <Text style={styles.rank}>#{candidate.rank}</Text>
+              <Text style={styles.score}>{candidate.similarity.toFixed(4)}</Text>
+            </View>
+            <View style={styles.candidateCopy}>
+              <Text style={styles.band}>{candidate.band} CANDIDATE</Text>
+              <Text style={styles.name}>{candidate.masked_name}</Text>
+              <Text style={styles.meta}>{candidate.age_band ?? 'AGE UNKNOWN'} · {candidate.district ?? 'DISTRICT UNKNOWN'}</Text>
+              <Text style={styles.meta}>{candidate.record_summary.case_count} CASES · {candidate.record_summary.convictions} CONVICTIONS</Text>
+            </View>
+          </Pressable>
+        );
+      })}
+      {result && result.candidates.length > 0 ? (
+        <View style={styles.actions}>
+          <Button disabled={selectedRank === null} label="CONFIRM SELECTED" loading={submitting} onPress={confirmSelected} size="primary" />
+          <Button label="RECORD NO MATCH" loading={submitting} onPress={() => void recordDecision('NO_MATCH')} size="primary" tone="clear" />
+          <Button label="INCONCLUSIVE · RETRY" loading={submitting} onPress={() => void recordDecision('INCONCLUSIVE')} tone="warn" />
+        </View>
+      ) : null}
+      {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
+      <Text style={styles.audit}>SEARCH {searchId} · BACK IS DISABLED UNTIL A DECISION IS RECORDED</Text>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  page: { backgroundColor: palette.paper, flex: 1 },
-  scroll: { gap: space[3], padding: space[3], paddingBottom: space[8] },
-  advisory: { color: palette.ink, fontSize: 14, fontWeight: '900', letterSpacing: 1 },
-  advisoryBody: { color: palette.ink, fontSize: 13, marginTop: 2 },
-  count: { color: palette.ink, fontSize: 11, fontWeight: '800', letterSpacing: 1.6 },
-  release: {
-    backgroundColor: palette.clear,
-    borderColor: palette.ink,
-    borderWidth: 3,
-    padding: space[6],
+  copy: { color: palette.ink, fontFamily: 'PublicSans', fontSize: 14, lineHeight: 21 },
+  release: { color: palette.ink, fontFamily: 'Archivo', fontSize: 42, fontWeight: '900', letterSpacing: -1 },
+  candidate: {
+    borderColor: palette.ink, borderWidth: structure.borderWidth, flexDirection: 'row',
+    gap: space[3], minHeight: 112, padding: space[3],
   },
-  releaseTitle: { color: palette.ink, fontSize: 34, fontWeight: '900', letterSpacing: -0.8 },
-  releaseBody: { color: palette.ink, fontSize: 14, marginTop: space[2] },
-  actions: {
-    borderTopColor: palette.ink,
-    borderTopWidth: 3,
-    flexDirection: 'row',
-    gap: space[2],
-    padding: space[3],
-  },
-  action: { flex: 1 },
-  status: { color: palette.ink, fontSize: 14, fontWeight: '800', padding: space[4] },
-  errorText: { color: palette.ink, fontSize: 13, fontWeight: '700' },
+  selected: { shadowColor: palette.ink, shadowOffset: { width: 8, height: 8 }, shadowOpacity: 1, shadowRadius: 0, transform: [{ translateX: -2 }, { translateY: -2 }] },
+  rankBlock: { alignItems: 'flex-start', borderRightColor: palette.ink, borderRightWidth: 2, minWidth: 74, paddingRight: space[2] },
+  rank: { color: palette.ink, fontFamily: 'Archivo', fontSize: 24, fontWeight: '900' },
+  score: { color: palette.ink, fontFamily: 'MartianMonoBold', fontSize: 15, marginTop: 8 },
+  candidateCopy: { flex: 1 },
+  band: { color: palette.ink, fontFamily: 'MartianMonoBold', fontSize: 10, letterSpacing: 0.8 },
+  name: { color: palette.ink, fontFamily: 'Archivo', fontSize: 21, fontWeight: '900', marginTop: 3 },
+  meta: { color: palette.ink, fontFamily: 'PublicSansBold', fontSize: 11, marginTop: 4 },
+  actions: { gap: space[3], marginTop: space[2] },
+  error: { backgroundColor: palette.alert, borderColor: palette.ink, borderWidth: 3, color: palette.ink, fontFamily: 'PublicSansBold', padding: space[3] },
+  audit: { color: palette.ink, fontFamily: 'MartianMono', fontSize: 10, lineHeight: 15, textAlign: 'center' },
 });

@@ -1,124 +1,100 @@
-import type { StyleProp, ViewStyle } from 'react-native';
-import { Pressable, StyleSheet, Text } from 'react-native';
-
 import {
-  fonts,
   palette,
-  scale,
-  space,
-  touch,
-  type ElevationLevel,
+  structure,
+  typeScale,
   type Tone,
 } from '@perigee/design-tokens';
+import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { Brut } from './Brut';
-
-export type ButtonVariant = 'solid' | 'outline' | 'ghost';
-export type ButtonSize = 'primary' | 'secondary';
+import { getTonePresentation, minimumButtonHeight } from './semantics';
 
 export interface ButtonProps {
   label: string;
   onPress: () => void;
-  /**
-   * `solid` fills with `tone`; `outline` is a `paper` fill with the same border
-   * and shadow; `ghost` is bare text. `tone` deliberately only affects a fill —
-   * an accent used as *text* on `paper` fails the contrast audit in docs/07 §3,
-   * so the label is always `ink`.
-   */
-  variant?: ButtonVariant;
-  tone?: Tone;
-  /** 64 dp primary, 56 dp secondary — docs/07 §5 touch targets. */
-  size?: ButtonSize;
-  level?: ElevationLevel;
+  tone?: Tone | 'neutral';
+  size?: 'primary' | 'secondary';
   disabled?: boolean;
+  loading?: boolean;
   accessibilityHint?: string;
+  variant?: 'solid' | 'outline' | 'ghost';
+  level?: 0 | 1 | 2 | 3 | 4;
   style?: StyleProp<ViewStyle>;
   testID?: string;
 }
 
-/**
- * On press the element translates into its own shadow and the shadow collapses
- * — docs/07 §6, signature interaction 1. The transition is a hard cut rather
- * than an eased one, which is both correct for the motion grammar and what a
- * reduce-motion user would get regardless.
- *
- * Disabled goes flush (elevation 0) on a `bone` fill rather than dimming:
- * docs/07 §1 rules out low-opacity text, which has to survive direct sunlight.
- */
 export function Button({
   label,
   onPress,
-  variant = 'solid',
   tone = 'signal',
-  size = 'primary',
-  level = 2,
+  size = 'secondary',
   disabled = false,
+  loading = false,
   accessibilityHint,
+  variant = 'solid',
   style,
   testID,
 }: ButtonProps) {
-  const height = size === 'primary' ? touch.primary : touch.secondary;
-  const fill: Tone = disabled ? 'bone' : tone;
-
+  const { backgroundColor } = getTonePresentation(tone);
+  const blocked = disabled || loading;
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityHint={accessibilityHint}
-      accessibilityState={{ disabled }}
-      testID={testID}
-      disabled={disabled}
-      onPress={onPress}
-      style={style}
-    >
-      {({ pressed }) => (
-        <Brut
-          tone={variant === 'solid' ? fill : 'paper'}
-          shadow={variant !== 'ghost' && !disabled}
-          level={level}
-          pressed={pressed}
-          style={[styles.surface, { minHeight: height }, variant === 'ghost' && styles.ghost]}
-        >
-          <Text
-            style={size === 'primary' ? styles.labelPrimary : styles.labelSecondary}
-            numberOfLines={1}
-          >
-            {label}
-          </Text>
-        </Brut>
-      )}
-    </Pressable>
+    <View style={[styles.frame, style]}>
+      <View pointerEvents="none" style={styles.shadow} />
+      <Pressable
+        accessibilityHint={accessibilityHint}
+        accessibilityLabel={loading ? `${label}, working` : label}
+        accessibilityRole="button"
+        accessibilityState={{ busy: loading, disabled: blocked }}
+        disabled={blocked}
+        testID={testID}
+        onPress={onPress}
+        style={({ pressed }) => [
+          styles.button,
+          {
+            backgroundColor: blocked ? palette.bone : variant === 'solid' ? backgroundColor : palette.paper,
+            minHeight: minimumButtonHeight(size),
+          },
+          pressed && !blocked ? styles.pressed : null,
+          variant === 'ghost' ? styles.ghost : null,
+        ]}
+      >
+        <Text style={styles.label}>{loading ? 'WORKING…' : label}</Text>
+      </Pressable>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  surface: {
+  frame: {
+    marginBottom: structure.shadowOffset,
+    marginRight: structure.shadowOffset,
+    position: 'relative',
+  },
+  shadow: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: palette.ink,
+    transform: [
+      { translateX: structure.shadowOffset },
+      { translateY: structure.shadowOffset },
+    ],
+  },
+  button: {
     alignItems: 'center',
+    borderColor: palette.ink,
+    borderWidth: structure.borderWidth,
     justifyContent: 'center',
-    paddingHorizontal: space[4],
+    paddingHorizontal: 20,
   },
-  ghost: {
-    // Safe to go transparent only because `ghost` draws no shadow — a
-    // transparent surface over a shadow sibling would show the ink through it.
-    backgroundColor: 'transparent',
-    borderWidth: 0,
+  pressed: {
+    transform: [
+      { translateX: structure.shadowOffset },
+      { translateY: structure.shadowOffset },
+    ],
   },
-  labelPrimary: {
-    fontFamily: fonts.display,
-    fontSize: scale.h2.size,
-    lineHeight: scale.h2.lh,
-    fontWeight: scale.h2.weight,
-    letterSpacing: scale.h2.tracking,
-    textTransform: scale.h2.transform,
+  ghost: { borderWidth: 0 },
+  label: {
     color: palette.ink,
-  },
-  labelSecondary: {
-    fontFamily: fonts.display,
-    fontSize: scale.label.size,
-    lineHeight: scale.label.lh,
-    fontWeight: scale.label.weight,
-    letterSpacing: scale.label.tracking,
-    textTransform: scale.label.transform,
-    color: palette.ink,
+    fontFamily: 'Archivo',
+    ...typeScale.label,
+    textAlign: 'center',
   },
 });

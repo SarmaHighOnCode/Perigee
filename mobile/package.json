@@ -3,17 +3,17 @@
   "version": "0.1.0",
   "private": true,
   "packageManager": "pnpm@10.28.0",
-  "engines": {
-    "node": ">=20"
-  },
+  "engines": { "node": ">=20" },
   "scripts": {
-    "typecheck": "pnpm -r --if-present typecheck",
     "test": "pnpm -r --if-present test",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "check": "pnpm test && pnpm typecheck",
     "field": "pnpm --filter @perigee/field start",
     "field:android": "pnpm --filter @perigee/field android"
   },
   "devDependencies": {
+    "@types/react": "~19.1.10",
     "typescript": "~5.9.2",
-    "vitest": "^3.0.0"
+    "vitest": "4.1.10"
   }
 }

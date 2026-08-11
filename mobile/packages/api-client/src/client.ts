@@ -31,6 +31,7 @@ import type {
   SearchResponse,
   Uuid,
 } from './types';
+import { isSearchResponse } from './types';
 
 export type FetchLike = (url: string, init: RequestInit) => Promise<Response>;
 
@@ -50,7 +51,7 @@ const RETRYABLE_STATUS = new Set([502, 503, 504]);
 
 export const DEVICE_KEY_HEADER = 'X-Perigee-Device-Key';
 export const OFFICER_ID_HEADER = 'X-Perigee-Officer-Id';
-export const REQUEST_ID_HEADER = 'X-Request-Id';
+export const REQUEST_ID_HEADER = 'X-Request-ID';
 
 export interface ClientOptions {
   /**
@@ -65,6 +66,8 @@ export interface ClientOptions {
   fetch?: FetchLike;
   /** Per-request timeout. Default 15 s. */
   timeoutMs?: number;
+  /** Deterministic request IDs for tests and host integration. */
+  requestId?: () => string;
 }
 
 export interface PerigeeClient {
@@ -74,16 +77,21 @@ export interface PerigeeClient {
 
   search(req: SearchRequest): Promise<SearchResponse>;
   getSearch(searchId: Uuid): Promise<SearchDetail>;
+  searchDetail(searchId: Uuid): Promise<SearchDetail>;
   pending(): Promise<PendingResponse>;
   /** Write-once. A second call returns 409 `DECISION_ALREADY_RECORDED`. */
   decide(searchId: Uuid, req: DecisionRequest): Promise<void>;
 
   createPerson(body: PersonCreate): Promise<PersonCreated>;
   addEmbedding(personId: Uuid, body: EmbeddingCreate): Promise<EmbeddingCreated>;
+  createEmbedding(personId: Uuid, body: EmbeddingCreate): Promise<EmbeddingCreated>;
   createMedia(personId: Uuid, body?: MediaCreate): Promise<MediaPresigned>;
+  presignMedia(personId: Uuid, body?: MediaCreate): Promise<MediaPresigned>;
+  uploadMedia(reservation: MediaPresigned, body: Blob | ArrayBuffer): Promise<void>;
   commitMedia(personId: Uuid, mediaId: Uuid, body: MediaCommit): Promise<MediaCommitted>;
   /** `searchId` is the purpose binding. Without it: 403. */
   getPerson(personId: Uuid, searchId: Uuid): Promise<PersonDetail>;
+  person(personId: Uuid, searchId: Uuid): Promise<PersonDetail>;
 
   graph(personId: Uuid, opts?: GraphOptions): Promise<GraphResponse>;
   auditVerify(opts?: AuditVerifyOptions): Promise<AuditVerifyResponse>;
@@ -98,6 +106,7 @@ interface RequestSpec {
   body?: unknown;
   /** 204 endpoints have no body to parse. */
   expectNoContent?: boolean;
+  authenticated?: boolean;
 }
 
 /**
@@ -183,15 +192,15 @@ export function createClient(options: ClientOptions): PerigeeClient {
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
   async function once<T>(spec: RequestSpec): Promise<T> {
-    const requestId = newRequestId();
+    const requestId = options.requestId?.() ?? newRequestId();
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
 
-    const headers: Record<string, string> = {
-      [DEVICE_KEY_HEADER]: options.deviceKey,
-      [OFFICER_ID_HEADER]: options.officerId,
-      [REQUEST_ID_HEADER]: requestId,
-    };
+    const headers: Record<string, string> = { [REQUEST_ID_HEADER]: requestId };
+    if (spec.authenticated !== false) {
+      headers[DEVICE_KEY_HEADER] = options.deviceKey;
+      headers[OFFICER_ID_HEADER] = options.officerId;
+    }
     if (spec.body !== undefined) headers['Content-Type'] = 'application/json';
 
     try {
@@ -278,13 +287,21 @@ export function createClient(options: ClientOptions): PerigeeClient {
   }
 
   return {
-    health: () => send<HealthResponse>({ method: 'GET', path: '/healthz' }),
-    ready: () => send<ReadyResponse>({ method: 'GET', path: '/readyz' }),
-    config: () => send<ConfigResponse>({ method: 'GET', path: '/v1/config' }),
+    health: () => send<HealthResponse>({ method: 'GET', path: '/healthz', authenticated: false }),
+    ready: () => send<ReadyResponse>({ method: 'GET', path: '/readyz', authenticated: false }),
+    config: () => send<ConfigResponse>({ method: 'GET', path: '/v1/config', authenticated: false }),
 
-    search: (req) => send<SearchResponse>({ method: 'POST', path: '/v1/search', body: req }),
+    search: async (req) => {
+      const response = await send<SearchResponse>({ method: 'POST', path: '/v1/search', body: req });
+      if (!isSearchResponse(response)) {
+        throw new PerigeeApiError({ code: 'INVALID_RESPONSE', message: 'Search response violated the ranked-candidate contract', httpStatus: 200 });
+      }
+      return response;
+    },
 
     getSearch: (searchId) =>
+      send<SearchDetail>({ method: 'GET', path: `/v1/search/${encodeURIComponent(searchId)}` }),
+    searchDetail: (searchId) =>
       send<SearchDetail>({ method: 'GET', path: `/v1/search/${encodeURIComponent(searchId)}` }),
 
     pending: () => send<PendingResponse>({ method: 'GET', path: '/v1/search/pending' }),
@@ -305,6 +322,8 @@ export function createClient(options: ClientOptions): PerigeeClient {
         path: `/v1/person/${encodeURIComponent(personId)}/embedding`,
         body,
       }),
+    createEmbedding: (personId, body) =>
+      send<EmbeddingCreated>({ method: 'POST', path: `/v1/person/${encodeURIComponent(personId)}/embedding`, body }),
 
     createMedia: (personId, body) =>
       send<MediaPresigned>({
@@ -312,6 +331,16 @@ export function createClient(options: ClientOptions): PerigeeClient {
         path: `/v1/person/${encodeURIComponent(personId)}/media`,
         body: body ?? {},
       }),
+    presignMedia: (personId, body) =>
+      send<MediaPresigned>({ method: 'POST', path: `/v1/person/${encodeURIComponent(personId)}/media`, body: body ?? {} }),
+    async uploadMedia(reservation, body) {
+      const response = await doFetch(reservation.upload_url, {
+        method: reservation.method || 'PUT',
+        headers: reservation.required_headers,
+        body,
+      });
+      if (!response.ok) throw new PerigeeApiError({ code: 'UPLOAD_FAILED', message: `Object storage returned HTTP ${response.status}`, httpStatus: response.status });
+    },
 
     commitMedia: (personId, mediaId, body) =>
       send<MediaCommitted>({
@@ -326,6 +355,8 @@ export function createClient(options: ClientOptions): PerigeeClient {
         path: `/v1/person/${encodeURIComponent(personId)}`,
         query: { search_id: searchId },
       }),
+    person: (personId, searchId) =>
+      send<PersonDetail>({ method: 'GET', path: `/v1/person/${encodeURIComponent(personId)}`, query: { search_id: searchId } }),
 
     graph: (personId, opts) =>
       send<GraphResponse>({
@@ -335,7 +366,7 @@ export function createClient(options: ClientOptions): PerigeeClient {
           depth: opts?.depth,
           min_weight: opts?.min_weight,
           edge_types: opts?.edge_types?.join(','),
-          limit: opts?.limit,
+          limit: opts?.limit ?? opts?.maxNodes,
         },
       }),
 
@@ -347,3 +378,6 @@ export function createClient(options: ClientOptions): PerigeeClient {
       }),
   };
 }
+
+export type PerigeeClientOptions = ClientOptions;
+export const createPerigeeClient = createClient;

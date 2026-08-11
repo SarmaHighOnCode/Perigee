@@ -52,7 +52,9 @@ export interface PerigeeApiErrorInit {
   detail?: Record<string, unknown>;
   requestId?: string;
   /** 0 when the failure happened before a response existed. */
-  httpStatus: number;
+  httpStatus?: number;
+  /** Backward-compatible name used by the first mobile prototype. */
+  status?: number;
 }
 
 export class PerigeeApiError extends Error {
@@ -60,6 +62,7 @@ export class PerigeeApiError extends Error {
   readonly detail: Record<string, unknown>;
   readonly requestId: string;
   readonly httpStatus: number;
+  readonly status: number;
 
   constructor(init: PerigeeApiErrorInit) {
     super(init.message);
@@ -71,7 +74,8 @@ export class PerigeeApiError extends Error {
     this.code = init.code;
     this.detail = init.detail ?? {};
     this.requestId = init.requestId ?? '';
-    this.httpStatus = init.httpStatus;
+    this.httpStatus = init.httpStatus ?? init.status ?? 0;
+    this.status = this.httpStatus;
   }
 }
 

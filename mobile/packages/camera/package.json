@@ -2,19 +2,30 @@
   "name": "@perigee/camera",
   "version": "0.1.0",
   "private": true,
-  "main": "src/index.ts",
-  "types": "src/index.ts",
-  "scripts": {
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
   },
-  "peerDependencies": {
-    "expo-file-system": "*",
-    "react": "*",
-    "react-native": "*",
-    "react-native-vision-camera": "*"
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@perigee/design-tokens": "workspace:*",
+    "@perigee/ui": "workspace:*",
+    "expo-file-system": "~19.0.23",
+    "react": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-vision-camera": "5.2.2"
   },
   "devDependencies": {
-    "vitest": "^3.0.0"
+    "@types/react": "~19.1.10",
+    "typescript": "~5.9.2",
+    "vitest": "4.1.10"
+  },
+  "peerDependencies": {
+    "expo": "~54.0.36",
+    "react": "19.1.0",
+    "react-native": "0.81.5"
   }
 }

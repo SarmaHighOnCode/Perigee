@@ -7,14 +7,10 @@
 export const structure = {
   borderWidth: 3,
   shadowOffset: 5,
-  radius: {
-    none: 0,
-    /** Inputs only, so the caret does not collide with the corner. */
-    input: 4,
-    /** Status chips only. */
-    pill: 999,
-  },
+  radius: 0,
 } as const;
+
+export const radii = { none: 0, input: 4, pill: 999 } as const;
 
 /**
  * Depth comes from shadow *offset*, never blur — docs/07 §4. Android's

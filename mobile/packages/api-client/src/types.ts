@@ -45,6 +45,11 @@ export type ReasonCode =
    *  distinct audit action so it stands out in review. */
   | 'browse';
 
+export const reasonCodes: readonly ReasonCode[] = [
+  'routine_check', 'suspicious_conduct', 'warrant_service', 'missing_person',
+  'post_incident', 'training', 'browse',
+];
+
 export type Gender = 'M' | 'F' | 'O' | 'U';
 
 export type AgeBand = '18-25' | '26-35' | '36-45' | '46-60' | '60+' | 'UNKNOWN';
@@ -260,12 +265,12 @@ export interface PendingResponse {
 export interface PersonCreate {
   full_name: string;
   aliases?: string[];
-  dob?: IsoDate;
-  gender?: Gender;
-  address_line?: string;
-  phone?: string;
-  age_band?: AgeBand;
-  district?: string;
+  dob?: IsoDate | null;
+  gender?: Gender | null;
+  address_line?: string | null;
+  phone?: string | null;
+  age_band?: AgeBand | null;
+  district?: string | null;
   /** Derived from `full_name` when omitted. */
   masked_name?: string;
 }
@@ -318,8 +323,8 @@ export interface MediaCommit {
   sha256: string;
   /** Accepted but not trusted: the server HEADs the object and stores the true size. */
   bytes: number;
-  width?: number;
-  height?: number;
+  width?: number | null;
+  height?: number | null;
   exif_stripped?: boolean;
 }
 
@@ -440,6 +445,26 @@ export interface GraphOptions {
   edge_types?: readonly EdgeType[];
   /** 1–200, default 60. */
   limit?: number;
+  /** @deprecated Use `limit`; retained for the camera proof app. */
+  maxNodes?: number;
+}
+
+/** Compatibility names used by the redesigned Expo apps. */
+export type RuntimeConfig = ConfigResponse;
+export interface ApiErrorEnvelope extends ErrorResponse {}
+
+/** Runtime safety boundary: the server must never assert an identification. */
+export function isSearchResponse(value: unknown): value is SearchResponse {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const record = value as Record<string, unknown>;
+  if ('is_match' in record || 'matched' in record || 'identity_confirmed' in record) return false;
+  if (typeof record['search_id'] !== 'string' || record['status'] !== 'PENDING_DECISION') return false;
+  if (!Array.isArray(record['candidates'])) return false;
+  return record['candidates'].every((candidate) => {
+    if (typeof candidate !== 'object' || candidate === null) return false;
+    const row = candidate as Record<string, unknown>;
+    return typeof row['person_id'] === 'string' && typeof row['band'] === 'string';
+  });
 }
 
 // ── Audit ───────────────────────────────────────────────────────────────────

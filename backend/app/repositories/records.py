@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
 from uuid import UUID
 
 import asyncpg
@@ -170,7 +169,3 @@ async def refresh_degree(conn: asyncpg.Connection, person_ids: list[UUID]) -> No
 
 async def person_exists(conn: asyncpg.Connection, person_id: UUID) -> bool:
     return await conn.fetchval("SELECT true FROM person WHERE person_id = $1", person_id) is True
-
-
-async def case_summary_rows(row: asyncpg.Record) -> dict[str, Any]:
-    return dict(row)

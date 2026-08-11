@@ -1,11 +1,59 @@
 import ReactNativeBlobUtil from 'react-native-blob-util';
 import { Platform } from 'react-native';
 
-import { downloadAndroidModel } from './android-model-download';
+import { AndroidModelDownloadManager } from './android-model-download';
 import type { ModelFileAdapter } from './model-cache';
 
-export const nativeModelFiles: ModelFileAdapter = {
+const registryDirectory = `${ReactNativeBlobUtil.fs.dirs.DocumentDir}/.perigee-model-downloads`;
+
+const androidDownloads = new AndroidModelDownloadManager({
+  downloadDirectory: ReactNativeBlobUtil.fs.dirs.DownloadDir,
+  registryDirectory,
+  async ensureRegistryDirectory() {
+    if (!(await ReactNativeBlobUtil.fs.exists(registryDirectory))) {
+      await ReactNativeBlobUtil.fs.mkdir(registryDirectory);
+    }
+  },
+  listRegistryEntries() {
+    return ReactNativeBlobUtil.fs.ls(registryDirectory);
+  },
+  async register(path) {
+    await ReactNativeBlobUtil.fs.writeFile(path, 'pending', 'utf8');
+  },
   exists(path) {
+    return ReactNativeBlobUtil.fs.exists(path);
+  },
+  async remove(path) {
+    await ReactNativeBlobUtil.fs.unlink(path);
+  },
+  cancelDownload(identity) {
+    return ReactNativeBlobUtil.cancelDownloadManagerTask(identity);
+  },
+  async fetch(url, path, identity, onProgress) {
+    const request = ReactNativeBlobUtil.config({
+      addAndroidDownloads: {
+        useDownloadManager: true,
+        notification: false,
+        mediaScannable: false,
+        mime: 'application/octet-stream',
+        path,
+        title: identity,
+      },
+    })
+      .fetch('GET', url)
+      .progress((received) => onProgress(Number(received)));
+    await request;
+  },
+  async copy(source, destination) {
+    await ReactNativeBlobUtil.fs.cp(source, destination);
+  },
+});
+
+export const nativeModelFiles: ModelFileAdapter = {
+  async exists(path) {
+    if (Platform.OS === 'android') {
+      await androidDownloads.recover();
+    }
     return ReactNativeBlobUtil.fs.exists(path);
   },
 
@@ -19,42 +67,15 @@ export const nativeModelFiles: ModelFileAdapter = {
   },
 
   async download(url, path, onProgress) {
-    if (Platform.OS !== 'android') {
-      const request = ReactNativeBlobUtil.config({ path, overwrite: true })
-        .fetch('GET', url)
-        .progress((received) => onProgress(Number(received)));
-      await request;
+    if (Platform.OS === 'android') {
+      await androidDownloads.download(url, path, onProgress);
       return;
     }
 
-    await downloadAndroidModel(
-      url,
-      path,
-      {
-        downloadDirectory: ReactNativeBlobUtil.fs.dirs.DownloadDir,
-        exists: (temporaryPath) => ReactNativeBlobUtil.fs.exists(temporaryPath),
-        remove: async (temporaryPath) => {
-          await ReactNativeBlobUtil.fs.unlink(temporaryPath);
-        },
-        fetch: async (downloadUrl, temporaryPath, reportProgress) => {
-          const request = ReactNativeBlobUtil.config({
-            addAndroidDownloads: {
-              useDownloadManager: true,
-              notification: false,
-              mime: 'application/octet-stream',
-              path: temporaryPath,
-            },
-          })
-            .fetch('GET', downloadUrl)
-            .progress((received) => reportProgress(Number(received)));
-          await request;
-        },
-        copy: async (source, destination) => {
-          await ReactNativeBlobUtil.fs.cp(source, destination);
-        },
-      },
-      onProgress,
-    );
+    const request = ReactNativeBlobUtil.config({ path, overwrite: true })
+      .fetch('GET', url)
+      .progress((received) => onProgress(Number(received)));
+    await request;
   },
 
   async move(source, destination) {

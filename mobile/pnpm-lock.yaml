@@ -4,6 +4,14 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  onnxruntime-react-native@1.24.3:
+    hash: ae20c5790c95d05f2699adf4edf70639b8d4187b59824fa2eb2e976486451de9
+    path: patches/onnxruntime-react-native@1.24.3.patch
+  react-native-blob-util@0.24.10:
+    hash: 804923df2578a8c33be2afc18464737dee6c76f2d974a09acb08ff227200f67a
+    path: patches/react-native-blob-util@0.24.10.patch
+
 importers:
 
   .:
@@ -100,7 +108,7 @@ importers:
         version: 6.0.9(expo@54.0.36)(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))
       onnxruntime-react-native:
         specifier: 1.24.3
-        version: 1.24.3(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
+        version: 1.24.3(patch_hash=ae20c5790c95d05f2699adf4edf70639b8d4187b59824fa2eb2e976486451de9)(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
       react:
         specifier: 19.1.0
         version: 19.1.0
@@ -112,7 +120,7 @@ importers:
         version: 0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0)
       react-native-blob-util:
         specifier: 0.24.10
-        version: 0.24.10(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
+        version: 0.24.10(patch_hash=804923df2578a8c33be2afc18464737dee6c76f2d974a09acb08ff227200f67a)(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
       react-native-gesture-handler:
         specifier: ~2.28.0
         version: 2.28.0(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
@@ -227,7 +235,7 @@ importers:
         version: 6.0.9(expo@54.0.36)(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))
       onnxruntime-react-native:
         specifier: 1.24.3
-        version: 1.24.3(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
+        version: 1.24.3(patch_hash=ae20c5790c95d05f2699adf4edf70639b8d4187b59824fa2eb2e976486451de9)(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
       react:
         specifier: 19.1.0
         version: 19.1.0
@@ -239,7 +247,7 @@ importers:
         version: 0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0)
       react-native-blob-util:
         specifier: 0.24.10
-        version: 0.24.10(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
+        version: 0.24.10(patch_hash=804923df2578a8c33be2afc18464737dee6c76f2d974a09acb08ff227200f67a)(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
       react-native-gesture-handler:
         specifier: ~2.28.0
         version: 2.28.0(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
@@ -337,10 +345,10 @@ importers:
         version: 2.2.12(react-native-reanimated@4.1.7(react-native-worklets@0.5.1(@babel/core@7.29.7)(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
       onnxruntime-react-native:
         specifier: 1.24.3
-        version: 1.24.3(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
+        version: 1.24.3(patch_hash=ae20c5790c95d05f2699adf4edf70639b8d4187b59824fa2eb2e976486451de9)(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
       react-native-blob-util:
         specifier: 0.24.10
-        version: 0.24.10(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
+        version: 0.24.10(patch_hash=804923df2578a8c33be2afc18464737dee6c76f2d974a09acb08ff227200f67a)(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
     devDependencies:
       typescript:
         specifier: ~5.9.2
@@ -7778,7 +7786,7 @@ snapshots:
 
   onnxruntime-common@1.24.3: {}
 
-  onnxruntime-react-native@1.24.3(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0):
+  onnxruntime-react-native@1.24.3(patch_hash=ae20c5790c95d05f2699adf4edf70639b8d4187b59824fa2eb2e976486451de9)(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0):
     dependencies:
       onnxruntime-common: 1.24.3
       react: 19.1.0
@@ -7939,7 +7947,7 @@ snapshots:
 
   react-is@19.2.8: {}
 
-  react-native-blob-util@0.24.10(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0):
+  react-native-blob-util@0.24.10(patch_hash=804923df2578a8c33be2afc18464737dee6c76f2d974a09acb08ff227200f67a)(react-native@0.81.5(@babel/core@7.29.7)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0):
     dependencies:
       base-64: 1.0.0
       glob: 13.0.6

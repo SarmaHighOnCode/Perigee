@@ -45,6 +45,18 @@ interface ModelDiagnosticTarget {
   spec: ModelSpec;
   setInputs(names: string[]): void;
   setOutputs(names: string[]): void;
+  setReady(ready: boolean): void;
+}
+
+interface PreparedModelDiagnosticTarget {
+  target: ModelDiagnosticTarget;
+  path: string;
+}
+
+interface OpenedModelDiagnosticSession {
+  target: ModelDiagnosticTarget;
+  session: RuntimeSession;
+  metadataMatches: boolean;
 }
 
 function emptyDiagnostic(): RuntimeDiagnostic {
@@ -75,17 +87,15 @@ function namesMatch(discovered: readonly string[], expected: readonly string[]):
     && discovered.every((name, index) => name === expected[index]);
 }
 
-async function diagnoseModel(
+async function prepareModel(
   baseUrl: string,
-  runtime: OnnxRuntimeModule,
   target: ModelDiagnosticTarget,
   dependencies: RuntimeDiagnosticDependencies,
   failures: string[],
   onProgress?: (progress: ModelProgress) => void,
-): Promise<boolean> {
-  let modelPath: string;
+): Promise<string | undefined> {
   try {
-    modelPath = await dependencies.ensureModel(
+    return await dependencies.ensureModel(
       target.spec,
       baseUrl,
       dependencies.files,
@@ -93,49 +103,35 @@ async function diagnoseModel(
     );
   } catch (error) {
     failures.push(`${target.label} model preparation failed: ${errorMessage(error)}`);
-    return false;
+    return undefined;
+  }
+}
+
+function inspectSession(
+  target: ModelDiagnosticTarget,
+  session: RuntimeSession,
+  failures: string[],
+): boolean {
+  const inputs = [...session.inputNames];
+  const outputs = [...session.outputNames];
+  target.setInputs(inputs);
+  target.setOutputs(outputs);
+
+  const expectedInputs = [target.spec.inputName];
+  const inputMatches = namesMatch(inputs, expectedInputs);
+  const outputMatches = namesMatch(outputs, target.spec.outputNames);
+  if (!inputMatches) {
+    failures.push(
+      `${target.label} input names mismatch: expected ${formattedNames(expectedInputs)}, received ${formattedNames(inputs)}.`,
+    );
+  }
+  if (!outputMatches) {
+    failures.push(
+      `${target.label} output names mismatch: expected ${formattedNames(target.spec.outputNames)}, received ${formattedNames(outputs)}.`,
+    );
   }
 
-  let session: RuntimeSession | undefined;
-  let metadataMatches = false;
-  let released = true;
-  try {
-    session = await runtime.InferenceSession.create(modelPath, {
-      executionProviders: ['cpu'],
-    });
-    const inputs = [...session.inputNames];
-    const outputs = [...session.outputNames];
-    target.setInputs(inputs);
-    target.setOutputs(outputs);
-
-    const expectedInputs = [target.spec.inputName];
-    const inputMatches = namesMatch(inputs, expectedInputs);
-    const outputMatches = namesMatch(outputs, target.spec.outputNames);
-    if (!inputMatches) {
-      failures.push(
-        `${target.label} input names mismatch: expected ${formattedNames(expectedInputs)}, received ${formattedNames(inputs)}.`,
-      );
-    }
-    if (!outputMatches) {
-      failures.push(
-        `${target.label} output names mismatch: expected ${formattedNames(target.spec.outputNames)}, received ${formattedNames(outputs)}.`,
-      );
-    }
-    metadataMatches = inputMatches && outputMatches;
-  } catch (error) {
-    failures.push(`${target.label} session failed: ${errorMessage(error)}`);
-  } finally {
-    if (session) {
-      try {
-        await session.release();
-      } catch (error) {
-        released = false;
-        failures.push(`${target.label} session release failed: ${errorMessage(error)}`);
-      }
-    }
-  }
-
-  return metadataMatches && released;
+  return inputMatches && outputMatches;
 }
 
 export async function diagnoseRuntimeWithDependencies(
@@ -167,32 +163,72 @@ export async function diagnoseRuntimeWithDependencies(
     return diagnostic;
   }
 
-  diagnostic.detectorReady = await diagnoseModel(
-    baseUrl,
-    runtime,
+  const targets: readonly ModelDiagnosticTarget[] = [
     {
       label: 'Detector',
       spec: DETECTOR,
       setInputs: (names) => { diagnostic.detectorInputs = names; },
       setOutputs: (names) => { diagnostic.detectorOutputs = names; },
+      setReady: (ready) => { diagnostic.detectorReady = ready; },
     },
-    dependencies,
-    diagnostic.failures,
-    onProgress,
-  );
-  diagnostic.recogniserReady = await diagnoseModel(
-    baseUrl,
-    runtime,
     {
       label: 'Recogniser',
       spec: RECOGNISER,
       setInputs: (names) => { diagnostic.recogniserInputs = names; },
       setOutputs: (names) => { diagnostic.recogniserOutputs = names; },
+      setReady: (ready) => { diagnostic.recogniserReady = ready; },
     },
-    dependencies,
-    diagnostic.failures,
-    onProgress,
-  );
+  ];
+
+  const prepared: PreparedModelDiagnosticTarget[] = [];
+  for (const target of targets) {
+    const path = await prepareModel(
+      baseUrl,
+      target,
+      dependencies,
+      diagnostic.failures,
+      onProgress,
+    );
+    if (path !== undefined) {
+      prepared.push({ target, path });
+    }
+  }
+
+  const opened: OpenedModelDiagnosticSession[] = [];
+  try {
+    for (const { target, path } of prepared) {
+      try {
+        const session = await runtime.InferenceSession.create(path, {
+          executionProviders: ['cpu'],
+        });
+        const openedSession: OpenedModelDiagnosticSession = {
+          target,
+          session,
+          metadataMatches: false,
+        };
+        opened.push(openedSession);
+        openedSession.metadataMatches = inspectSession(
+          target,
+          session,
+          diagnostic.failures,
+        );
+      } catch (error) {
+        diagnostic.failures.push(`${target.label} session failed: ${errorMessage(error)}`);
+      }
+    }
+  } finally {
+    for (const openedSession of [...opened].reverse()) {
+      try {
+        await openedSession.session.release();
+        openedSession.target.setReady(openedSession.metadataMatches);
+      } catch (error) {
+        openedSession.target.setReady(false);
+        diagnostic.failures.push(
+          `${openedSession.target.label} session release failed: ${errorMessage(error)}`,
+        );
+      }
+    }
+  }
 
   return diagnostic;
 }

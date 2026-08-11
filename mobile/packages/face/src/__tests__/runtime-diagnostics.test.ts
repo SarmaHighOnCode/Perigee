@@ -22,32 +22,41 @@ function dependencies(
       ? Create
       : never
     : never,
+  events?: string[],
 ): RuntimeDiagnosticDependencies {
   return {
     loadOnnxRuntime: async () => ({ InferenceSession: { create } }),
     loadSkia: async () => ({ Skia: {} }),
-    ensureModel: async (spec) => `/models/${spec.fileName}`,
+    ensureModel: async (spec) => {
+      events?.push(`ensure:${spec.key}`);
+      return `/models/${spec.fileName}`;
+    },
     files: {} as ModelFileAdapter,
   };
 }
 
 describe('native runtime diagnostics', () => {
   it('opens both verified models on CPU and reports discovered metadata', async () => {
-    const released: string[] = [];
+    const events: string[] = [];
+    let detectorLive = false;
     const create = vi.fn(async (path: string, options: { executionProviders: readonly ['cpu'] }) => {
       if (path.endsWith(DETECTOR.fileName)) {
+        events.push('create:detector');
+        detectorLive = true;
         return session([DETECTOR.inputName], DETECTOR.outputNames, async () => {
-          released.push('detector');
+          events.push('release:detector');
+          detectorLive = false;
         });
       }
+      events.push(`create:recogniser:detector-live=${detectorLive}`);
       return session([RECOGNISER.inputName], RECOGNISER.outputNames, async () => {
-        released.push('recogniser');
+        events.push('release:recogniser');
       });
     });
 
     const result = await diagnoseRuntimeWithDependencies(
       'https://models.example',
-      dependencies(create),
+      dependencies(create, events),
     );
 
     expect(create).toHaveBeenNthCalledWith(1, `/models/${DETECTOR.fileName}`, {
@@ -68,7 +77,14 @@ describe('native runtime diagnostics', () => {
       recogniserOutputs: [...RECOGNISER.outputNames],
       failures: [],
     });
-    expect(released).toEqual(['detector', 'recogniser']);
+    expect(events).toEqual([
+      'ensure:det_10g',
+      'ensure:w600k_r50',
+      'create:detector',
+      'create:recogniser:detector-live=true',
+      'release:recogniser',
+      'release:detector',
+    ]);
   });
 
   it('keeps exact metadata mismatches visible and releases the session', async () => {
@@ -97,17 +113,23 @@ describe('native runtime diagnostics', () => {
   });
 
   it('releases an opened detector when recogniser session creation fails', async () => {
+    const events: string[] = [];
     const detectorRelease = vi.fn(async () => undefined);
     const create = vi.fn(async (path: string) => {
       if (path.endsWith(DETECTOR.fileName)) {
-        return session([DETECTOR.inputName], DETECTOR.outputNames, detectorRelease);
+        events.push('create:detector');
+        return session([DETECTOR.inputName], DETECTOR.outputNames, async () => {
+          events.push('release:detector');
+          await detectorRelease();
+        });
       }
+      events.push('create:recogniser');
       throw new Error('native session refused the model');
     });
 
     const result = await diagnoseRuntimeWithDependencies(
       'https://models.example',
-      dependencies(create),
+      dependencies(create, events),
     );
 
     expect(result.detectorReady).toBe(true);
@@ -116,6 +138,68 @@ describe('native runtime diagnostics', () => {
       'Recogniser session failed: native session refused the model',
     );
     expect(detectorRelease).toHaveBeenCalledOnce();
+    expect(events).toEqual([
+      'ensure:det_10g',
+      'ensure:w600k_r50',
+      'create:detector',
+      'create:recogniser',
+      'release:detector',
+    ]);
+  });
+
+  it('continues with the recogniser and releases it when detector creation fails', async () => {
+    const recogniserRelease = vi.fn(async () => undefined);
+    const create = vi.fn(async (path: string) => {
+      if (path.endsWith(DETECTOR.fileName)) {
+        throw new Error('detector session refused the model');
+      }
+      return session(
+        [RECOGNISER.inputName],
+        RECOGNISER.outputNames,
+        recogniserRelease,
+      );
+    });
+
+    const result = await diagnoseRuntimeWithDependencies(
+      'https://models.example',
+      dependencies(create),
+    );
+
+    expect(result.detectorReady).toBe(false);
+    expect(result.recogniserReady).toBe(true);
+    expect(result.failures).toContain(
+      'Detector session failed: detector session refused the model',
+    );
+    expect(recogniserRelease).toHaveBeenCalledOnce();
+  });
+
+  it('attempts both releases in reverse order and preserves both release failures', async () => {
+    const events: string[] = [];
+    const create = vi.fn(async (path: string) => {
+      if (path.endsWith(DETECTOR.fileName)) {
+        return session([DETECTOR.inputName], DETECTOR.outputNames, async () => {
+          events.push('release:detector');
+          throw new Error('detector release failed natively');
+        });
+      }
+      return session([RECOGNISER.inputName], RECOGNISER.outputNames, async () => {
+        events.push('release:recogniser');
+        throw new Error('recogniser release failed natively');
+      });
+    });
+
+    const result = await diagnoseRuntimeWithDependencies(
+      'https://models.example',
+      dependencies(create),
+    );
+
+    expect(events).toEqual(['release:recogniser', 'release:detector']);
+    expect(result.detectorReady).toBe(false);
+    expect(result.recogniserReady).toBe(false);
+    expect(result.failures).toEqual([
+      'Recogniser session release failed: recogniser release failed natively',
+      'Detector session release failed: detector release failed natively',
+    ]);
   });
 
   it('reports native module load failures without attempting model access', async () => {

@@ -26,6 +26,7 @@ class MemoryModelFiles implements ModelFileAdapter {
   downloadResult: StoredFile = { bytes: SPEC.bytes, sha256: SPEC.sha256 };
   downloadProgress = [SPEC.bytes];
   downloadHook?: (path: string, onProgress: (received: number) => void) => Promise<void>;
+  removeHook?: (path: string) => Promise<void>;
 
   modelPath(fileName: string): string {
     return `/models/${fileName}`;
@@ -73,6 +74,7 @@ class MemoryModelFiles implements ModelFileAdapter {
 
   async remove(path: string): Promise<void> {
     this.calls.push(`remove:${path}`);
+    await this.removeHook?.(path);
     this.files.delete(path);
   }
 
@@ -112,6 +114,23 @@ describe('verified model cache', () => {
     expect(files.files.get(target)).toEqual({ bytes: SPEC.bytes, sha256: SPEC.sha256 });
   });
 
+  it('deletes a wrong-size cached file before downloading even when its digest matches', async () => {
+    const files = new MemoryModelFiles();
+    const target = files.modelPath(SPEC.fileName);
+    files.files.set(target, { bytes: SPEC.bytes - 1, sha256: SPEC.sha256 });
+
+    await ensureModel(SPEC, 'https://models.example', files);
+
+    const sizeIndex = files.calls.indexOf(`size:${target}`);
+    const removeIndex = files.calls.indexOf(`remove:${target}`);
+    const downloadIndex = files.calls.findIndex((call) => call.startsWith('download:'));
+    expect(sizeIndex).toBeGreaterThanOrEqual(0);
+    expect(removeIndex).toBeGreaterThan(sizeIndex);
+    expect(downloadIndex).toBeGreaterThan(removeIndex);
+    expect(files.calls).not.toContain(`sha256:${target}`);
+    expect(files.files.get(target)).toEqual({ bytes: SPEC.bytes, sha256: SPEC.sha256 });
+  });
+
   it('downloads to a partial path and promotes only after verification', async () => {
     const files = new MemoryModelFiles();
     const target = files.modelPath(SPEC.fileName);
@@ -146,6 +165,30 @@ describe('verified model cache', () => {
     expect(files.calls).not.toContain(`move:${partial}->${target}`);
     expect(files.files.has(partial)).toBe(false);
     expect(files.files.has(target)).toBe(false);
+  });
+
+  it('preserves the initiating download error when partial cleanup also fails', async () => {
+    const files = new MemoryModelFiles();
+    const primaryError = new Error('native download failed');
+    const cleanupError = new Error('private partial unlink failed');
+    files.downloadHook = async (path) => {
+      files.files.set(path, { bytes: 1, sha256: OTHER_DIGEST });
+      throw primaryError;
+    };
+    files.removeHook = async (path) => {
+      if (path.endsWith('.partial')) {
+        throw cleanupError;
+      }
+    };
+
+    const operation = ensureModel(SPEC, 'https://models.example', files);
+
+    await expect(operation).rejects.toMatchObject({
+      name: 'ModelCacheCleanupError',
+      primaryError,
+      cleanupError,
+    });
+    await expect(operation).rejects.toThrow(/native download failed.*private partial unlink failed/i);
   });
 
   it('reports bytes received and total bytes', async () => {

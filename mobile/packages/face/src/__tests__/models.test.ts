@@ -1,6 +1,39 @@
-import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-import { DETECTOR, MODEL_ID, RECOGNISER, modelUrl } from '../onnx/models';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import {
+  DEFAULT_MODEL_BASE_URL,
+  DETECTOR,
+  MODEL_ID,
+  RECOGNISER,
+  modelBaseUrl,
+  modelUrl,
+  type ModelSpec,
+} from '../onnx/models';
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
+function assertModelSpecPropertiesAreReadonly(spec: ModelSpec): void {
+  // @ts-expect-error Model registry keys are immutable.
+  spec.key = 'w600k_r50';
+  // @ts-expect-error Model filenames are immutable.
+  spec.fileName = 'replacement.onnx';
+  // @ts-expect-error Model byte counts are immutable.
+  spec.bytes = 0;
+  // @ts-expect-error Model digests are immutable.
+  spec.sha256 = '0'.repeat(64);
+  // @ts-expect-error Model input names are immutable.
+  spec.inputName = 'input.1';
+  // @ts-expect-error Model output arrays cannot be replaced.
+  spec.outputNames = [];
+}
+
+void assertModelSpecPropertiesAreReadonly;
 
 describe('verified InsightFace model registry', () => {
   it('pins the verified SCRFD detector contract', () => {
@@ -30,27 +63,47 @@ describe('verified InsightFace model registry', () => {
     expect(MODEL_ID).toBe('insightface/w600k_r50@1');
   });
 
-  it('uses the emulator default and an Expo public URL override', () => {
-    const runtime = globalThis as {
-      process?: { env?: Record<string, string | undefined> };
-    };
-    const environment = runtime.process?.env;
-    const originalBaseUrl = environment?.EXPO_PUBLIC_MODEL_BASE_URL;
+  it('uses the emulator URL only when the Expo public override is unset', () => {
+    vi.stubEnv('EXPO_PUBLIC_MODEL_BASE_URL', undefined);
 
+    expect(modelBaseUrl()).toBe(DEFAULT_MODEL_BASE_URL);
     expect(modelUrl(DETECTOR)).toBe('http://10.0.2.2:8765/det_10g.onnx');
+  });
 
-    try {
-      if (!environment) {
-        throw new Error('Test runtime has no environment object');
-      }
+  it('trims and validates the Expo public URL override', () => {
+    vi.stubEnv('EXPO_PUBLIC_MODEL_BASE_URL', '  http://127.0.0.1:8765/  ');
+    expect(modelBaseUrl()).toBe('http://127.0.0.1:8765');
+    expect(modelUrl(RECOGNISER)).toBe('http://127.0.0.1:8765/w600k_r50.onnx');
 
-      environment.EXPO_PUBLIC_MODEL_BASE_URL = 'http://192.168.1.20:8765/';
-      expect(modelUrl(RECOGNISER)).toBe('http://192.168.1.20:8765/w600k_r50.onnx');
-    } finally {
-      if (environment) {
-        environment.EXPO_PUBLIC_MODEL_BASE_URL = originalBaseUrl;
-      }
-    }
+    vi.stubEnv('EXPO_PUBLIC_MODEL_BASE_URL', '   ');
+    expect(() => modelBaseUrl()).toThrow(/EXPO_PUBLIC_MODEL_BASE_URL.*non-empty/i);
+
+    vi.stubEnv('EXPO_PUBLIC_MODEL_BASE_URL', 'file:///tmp/models');
+    expect(() => modelBaseUrl()).toThrow(/EXPO_PUBLIC_MODEL_BASE_URL.*http/i);
+  });
+
+  it('uses the direct Expo-inlinable process.env member expression in source', () => {
+    const source = readFileSync(
+      resolve(dirname(fileURLToPath(import.meta.url)), '../onnx/models.ts'),
+      'utf8',
+    );
+
+    expect(source).toMatch(/\bprocess\.env\.EXPO_PUBLIC_MODEL_BASE_URL\b/);
+    expect(source).not.toMatch(/globalThis[\s\S]{0,160}EXPO_PUBLIC_MODEL_BASE_URL/);
+  });
+
+  it('freezes both model specifications and their nested output arrays', () => {
+    expect(Object.isFrozen(DETECTOR)).toBe(true);
+    expect(Object.isFrozen(DETECTOR.outputNames)).toBe(true);
+    expect(Object.isFrozen(RECOGNISER)).toBe(true);
+    expect(Object.isFrozen(RECOGNISER.outputNames)).toBe(true);
+
+    expect(() => {
+      (DETECTOR as unknown as { fileName: string }).fileName = 'replacement.onnx';
+    }).toThrow(TypeError);
+    expect(() => {
+      (RECOGNISER.outputNames as unknown as string[]).push('replacement');
+    }).toThrow(TypeError);
   });
 
   it('accepts an explicit model URL base without a duplicate separator', () => {

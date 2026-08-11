@@ -5,6 +5,11 @@ face-recognition pipeline. It downloads the official InsightFace `buffalo_l`
 v0.7 release for non-commercial research/hackathon use, validates the archive,
 and exports only `det_10g.onnx` and `w600k_r50.onnx`.
 
+InsightFace source code is licensed under the MIT License. Its pretrained
+weights, including the weights in `buffalo_l`, have separate terms restricted
+to non-commercial research use. Commercial use of those pretrained weights
+requires separate permission or licensing from InsightFace's maintainers.
+
 The FastAPI backend does not import this tool and does not depend on ONNX,
 OpenCV, or any image runtime.
 

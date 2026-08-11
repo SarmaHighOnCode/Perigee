@@ -20,6 +20,24 @@ export interface ModelProgress {
 const LOWERCASE_SHA256 = /^[0-9a-f]{64}$/;
 const inFlightModels = new Map<ModelSpec['key'], Promise<string>>();
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+export class ModelCacheCleanupError extends Error {
+  readonly primaryError: unknown;
+  readonly cleanupError: unknown;
+
+  constructor(primaryError: unknown, cleanupError: unknown) {
+    super(
+      `${errorMessage(primaryError)} (private partial cleanup also failed: ${errorMessage(cleanupError)})`,
+    );
+    this.name = 'ModelCacheCleanupError';
+    this.primaryError = primaryError;
+    this.cleanupError = cleanupError;
+  }
+}
+
 function assertExpectedDigest(digest: string): void {
   if (!LOWERCASE_SHA256.test(digest)) {
     throw new Error('Expected model SHA-256 must be exactly 64 lowercase hexadecimal characters');
@@ -109,9 +127,13 @@ async function ensureModelOnce(
     report(spec, 'verifying', receivedBytes, onProgress);
     await verifyDownloadedModel(spec, partial, files, receivedBytes);
     await files.move(partial, target);
-  } catch (error) {
-    await removeIfPresent(files, partial);
-    throw error;
+  } catch (primaryError) {
+    try {
+      await removeIfPresent(files, partial);
+    } catch (cleanupError) {
+      throw new ModelCacheCleanupError(primaryError, cleanupError);
+    }
+    throw primaryError;
   }
 
   report(spec, 'ready', spec.bytes, onProgress);

@@ -30,7 +30,30 @@ describe('verified InsightFace model registry', () => {
     expect(MODEL_ID).toBe('insightface/w600k_r50@1');
   });
 
-  it('builds model URLs without a duplicate separator', () => {
+  it('uses the emulator default and an Expo public URL override', () => {
+    const runtime = globalThis as {
+      process?: { env?: Record<string, string | undefined> };
+    };
+    const environment = runtime.process?.env;
+    const originalBaseUrl = environment?.EXPO_PUBLIC_MODEL_BASE_URL;
+
+    expect(modelUrl(DETECTOR)).toBe('http://10.0.2.2:8765/det_10g.onnx');
+
+    try {
+      if (!environment) {
+        throw new Error('Test runtime has no environment object');
+      }
+
+      environment.EXPO_PUBLIC_MODEL_BASE_URL = 'http://192.168.1.20:8765/';
+      expect(modelUrl(RECOGNISER)).toBe('http://192.168.1.20:8765/w600k_r50.onnx');
+    } finally {
+      if (environment) {
+        environment.EXPO_PUBLIC_MODEL_BASE_URL = originalBaseUrl;
+      }
+    }
+  });
+
+  it('accepts an explicit model URL base without a duplicate separator', () => {
     expect(modelUrl(DETECTOR, 'http://10.0.2.2:8765')).toBe('http://10.0.2.2:8765/det_10g.onnx');
     expect(modelUrl(RECOGNISER, 'http://10.0.2.2:8765/')).toBe('http://10.0.2.2:8765/w600k_r50.onnx');
   });

@@ -8,6 +8,7 @@ export interface ModelSpec {
 }
 
 export const MODEL_ID = 'insightface/w600k_r50@1';
+export const DEFAULT_MODEL_BASE_URL = 'http://10.0.2.2:8765';
 
 export const DETECTOR: ModelSpec = {
   key: 'det_10g',
@@ -27,6 +28,15 @@ export const RECOGNISER: ModelSpec = {
   outputNames: ['683'],
 };
 
-export function modelUrl(spec: ModelSpec, baseUrl: string): string {
+function configuredModelBaseUrl(): string | undefined {
+  return (globalThis as { process?: { env?: { EXPO_PUBLIC_MODEL_BASE_URL?: string } } })
+    .process?.env?.EXPO_PUBLIC_MODEL_BASE_URL;
+}
+
+export function modelBaseUrl(): string {
+  return configuredModelBaseUrl() ?? DEFAULT_MODEL_BASE_URL;
+}
+
+export function modelUrl(spec: ModelSpec, baseUrl = modelBaseUrl()): string {
   return `${baseUrl.replace(/\/$/, '')}/${spec.fileName}`;
 }

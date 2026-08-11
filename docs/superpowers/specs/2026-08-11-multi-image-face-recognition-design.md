@@ -68,8 +68,8 @@ packages as direct dependencies so Expo autolinking sees them inside each Androi
 | --- | --- | --- |
 | `onnxruntime-react-native` | `1.24.3` | Detector and recogniser inference |
 | `@shopify/react-native-skia` | `2.2.12` | Native decode, resize, drawing, and pixel reads |
-| `expo-file-system` | existing SDK 54 version | Private model cache and atomic file replacement |
-| `expo-crypto` | existing SDK 54 version | Raw-file SHA-256 integrity verification |
+| `react-native-blob-util` | `0.24.10` | Streaming model download and raw-file SHA-256 |
+| `expo-file-system` | existing SDK 54 version | Application-private paths and non-model files |
 | `react-native-vision-camera` | existing `5.2.2` | High-quality still capture |
 
 `@perigee/face` owns all JavaScript and TypeScript inference logic. Field and Enroll own only
@@ -96,10 +96,13 @@ The repository stores a model manifest, not the model binaries. Each manifest en
 - verified input and output names and shapes;
 - preprocessing mean, scale, channel order, and layout.
 
-Models download into an application-private `perigee-models` directory. A download is written to a
-temporary file, hashed as raw bytes, and renamed into place only after the digest matches. A cached
-model is hashed before every new inference-session lifecycle. A mismatch deletes the file and
-requires a clean redownload. The two models are never committed to Git or bundled into an APK.
+Models download into an application-private `perigee-models` directory through
+`react-native-blob-util`, which writes the response directly to disk and hashes the file natively.
+This avoids loading a 174 MB model into the JavaScript heap; Expo SDK 54's installed `File` API has
+no streaming SHA-256 method. A download is written to a temporary file, hashed as raw bytes, and
+renamed into place only after the digest matches. A cached model is hashed before every new
+inference-session lifecycle. A mismatch deletes the file and requires a clean redownload. The two
+models are never committed to Git or bundled into an APK.
 
 ONNX Runtime sessions are created once per app process. For the non-quantised models the engine
 tries XNNPACK first, then CPU. NNAPI may be added only after the diagnostics benchmark proves it is

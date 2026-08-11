@@ -1,0 +1,98 @@
+name: mobile-monorepo-ci
+
+on:
+  push:
+    branches: [main]
+    paths: ['mobile/**', '.github/workflows/mobile-monorepo-ci.yml']
+  pull_request:
+    paths: ['mobile/**', '.github/workflows/mobile-monorepo-ci.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: mobile-monorepo-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: mobile
+
+jobs:
+  check:
+    name: typecheck + tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: mobile/pnpm-lock.yaml
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck every package and the app
+        run: pnpm -r typecheck
+
+      - name: Tests
+        run: pnpm -r test
+
+      - name: Assert the synthetic watermark cannot be disabled
+        # An ethical requirement, not a style choice: screenshots escape.
+        # Matches PROP DECLARATIONS only — the file legitimately contains
+        # `overflow: 'hidden'` and a comment warning against exactly this.
+        run: |
+          # Scope to the props interface. The StyleSheet legitimately sets
+          # `opacity: 0.08` (the watermark's own 8%) and `overflow: 'hidden'`.
+          PROPS=$(sed -n '/export interface SyntheticWatermarkProps/,/^}/p' \
+                    packages/ui/src/SyntheticWatermark.tsx)
+          echo "$PROPS"
+          if echo "$PROPS" | grep -qE '^\s*(disabled|hidden|enabled|show|visible|opacity)\??:'; then
+            echo "::error::SyntheticWatermark gained a visibility escape hatch"
+            exit 1
+          fi
+          echo "OK: watermark has no disable prop"
+
+      - name: Assert no match-assertion language in the mobile tree
+        # The API never asserts an identification, and neither may the UI.
+        # "NO MATCH" is a negation and is permitted; "MATCH FOUND" is not.
+        #
+        # Comments and tests are excluded: several of them exist precisely to
+        # forbid these strings, and a guard that fires on its own enforcement
+        # is a guard nobody keeps.
+        run: |
+          FOUND=$(grep -rnE '\b(MATCH FOUND|IDENTIFIED|POSITIVE MATCH)\b' \
+                    --include='*.ts' --include='*.tsx' packages apps \
+                    | grep -v '__tests__' \
+                    | grep -vE ':\s*[0-9]+:\s*(\*|//|/\*)' || true)
+          if [ -n "$FOUND" ]; then
+            echo "$FOUND"
+            echo "::error::match-assertion language found in code"
+            exit 1
+          fi
+          FIELDS=$(grep -rnE '\b(is_match|identity_confirmed|match_found)\b' \
+                     --include='*.ts' --include='*.tsx' packages apps \
+                     | grep -v '__tests__' \
+                     | grep -vE ':\s*[0-9]+:\s*(\*|//|/\*)' || true)
+          if [ -n "$FIELDS" ]; then
+            echo "$FIELDS"
+            echo "::error::match-assertion field found in code"
+            exit 1
+          fi
+          echo "OK: no match assertions"
+
+      - name: Assert the probe image is never uploaded
+        # The photograph must never reach the network. If a capture URI or a
+        # FormData body ever appears in the API client, that guarantee is gone.
+        run: |
+          if grep -rnE 'FormData|multipart|capture\.uri' \
+               --include='*.ts' packages/api-client/src; then
+            echo "::error::api-client may be uploading image data"
+            exit 1
+          fi
+          echo "OK: api-client sends vectors only"

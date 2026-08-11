@@ -25,8 +25,16 @@ That is the point: this is as much a tool for *clearing* people as for identifyi
 
 ## What's in this repository
 
-This repository currently contains **architecture and specification only**. No implementation yet —
-by design. The docs below are the contract that the code will be written against.
+| Path | Status |
+| --- | --- |
+| [`docs/`](docs/) | Architecture and specification — the contract everything is built against |
+| [`backend/`](backend/) | **Perigee Core** — FastAPI + pgvector. Search, decisions, audit chain, graph. Fixture embeddings; no face recognition yet. |
+| [`testing/testcamera/`](testing/testcamera/) | Expo camera proof-of-concept — VisionCamera 5, Android CameraX, local release builds |
+
+> **Face recognition is deliberately on hold.** The backend takes a real
+> `embedding: number[512]` contract and development uses deterministic synthetic fixture vectors, so
+> the on-device SCRFD + ArcFace package drops in later without a backend change. Fixture results are
+> connectivity fixtures, never recognition results.
 
 | Document | What it covers |
 | --- | --- |
@@ -45,6 +53,7 @@ by design. The docs below are the contract that the code will be written against
 | [12 — Scaling & Roadmap](docs/12-SCALING-ROADMAP.md) | What breaks at 10⁵, 10⁶, 10⁷ faces — and what replaces it. |
 | [13 — Build Plan](docs/13-BUILD-PLAN.md) | Hackathon execution order with a critical path and cut-lines. |
 | [ADR/](docs/ADR/) | Architecture Decision Records — the *why* behind each fork. |
+| [Contract Notes](docs/CONTRACT-NOTES.md) | Where the implementation resolves an ambiguity or departs from the spec, and why. |
 
 ---
 

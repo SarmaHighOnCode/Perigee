@@ -48,3 +48,7 @@ export function guardSettings(
       : 0,
   };
 }
+
+export const DEFAULT_CAPTURE_SETTINGS: CaptureSettings = {
+  flash: 'off', hdr: false, lowLight: false, zoom: 1, exposure: 0,
+};

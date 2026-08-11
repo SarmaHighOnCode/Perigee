@@ -21,6 +21,7 @@
     "@perigee/api-client": "workspace:*",
     "@perigee/camera": "workspace:*",
     "@perigee/design-tokens": "workspace:*",
+    "@perigee/face": "workspace:*",
     "@perigee/ui": "workspace:*",
     "@tanstack/react-query": "5.101.4",
     "expo": "~54.0.36",

@@ -1,315 +1,383 @@
-import { PerigeeApiError } from './errors';
-import {
-  isSearchResponse,
-  type ApiErrorEnvelope,
-  type DecisionRequest,
-  type EmbeddingCreate,
-  type EmbeddingCreated,
-  type GraphResponse,
-  type MediaCommit,
-  type MediaCommitted,
-  type MediaCreate,
-  type MediaPresigned,
-  type PendingResponse,
-  type PersonCreate,
-  type PersonCreated,
-  type PersonDetail,
-  type ReadyResponse,
-  type RuntimeConfig,
-  type SearchDetail,
-  type SearchRequest,
-  type SearchResponse,
+/**
+ * The typed HTTP client for perigee-core.
+ *
+ * Zero runtime dependencies: global `fetch` and `AbortController` only. Nothing
+ * here imports react-native, so the same client runs in Node, in a test, and on
+ * a handset.
+ */
+
+import { PerigeeApiError, parseErrorEnvelope } from './errors';
+import type {
+  AuditVerifyOptions,
+  AuditVerifyResponse,
+  ConfigResponse,
+  DecisionRequest,
+  EmbeddingCreate,
+  EmbeddingCreated,
+  GraphOptions,
+  GraphResponse,
+  HealthResponse,
+  MediaCommit,
+  MediaCommitted,
+  MediaCreate,
+  MediaPresigned,
+  PendingResponse,
+  PersonCreate,
+  PersonCreated,
+  PersonDetail,
+  ReadyResponse,
+  SearchDetail,
+  SearchRequest,
+  SearchResponse,
+  Uuid,
 } from './types';
+import { isSearchResponse } from './types';
 
-type Fetch = typeof globalThis.fetch;
+export type FetchLike = (url: string, init: RequestInit) => Promise<Response>;
 
-export interface PerigeeClientOptions {
+export const DEFAULT_TIMEOUT_MS = 15_000;
+
+/** Idempotent GETs only. See `send()` for why nothing else is retried. */
+const MAX_GET_RETRIES = 2;
+const RETRY_BASE_DELAY_MS = 300;
+
+/**
+ * 502/504 are the Render edge while the instance spins up; 503 is
+ * `DATABASE_UNAVAILABLE`, which is Neon waking. All three are transient and
+ * worth one more GET. 429 is not retried — retrying a rate limit is how you
+ * stay rate limited.
+ */
+const RETRYABLE_STATUS = new Set([502, 503, 504]);
+
+export const DEVICE_KEY_HEADER = 'X-Perigee-Device-Key';
+export const OFFICER_ID_HEADER = 'X-Perigee-Officer-Id';
+export const REQUEST_ID_HEADER = 'X-Request-ID';
+
+export interface ClientOptions {
+  /**
+   * Origin only — `https://perigee-core.onrender.com`. Paths carry their own
+   * prefix, because `/healthz` and `/readyz` sit outside `/v1`.
+   */
   baseUrl: string;
+  /** Provisioned at build time. Identifies a handset, not a person. */
   deviceKey: string;
+  /** Asserted, never verified. Attribution, not authentication. */
   officerId: string;
-  fetch?: Fetch;
-  requestId?: () => string;
+  fetch?: FetchLike;
+  /** Per-request timeout. Default 15 s. */
   timeoutMs?: number;
+  /** Deterministic request IDs for tests and host integration. */
+  requestId?: () => string;
 }
 
 export interface PerigeeClient {
-  health(): Promise<{ status: string; dataset_mode: string }>;
+  health(): Promise<HealthResponse>;
   ready(): Promise<ReadyResponse>;
-  config(): Promise<RuntimeConfig>;
-  search(request: SearchRequest): Promise<SearchResponse>;
-  searchDetail(searchId: string): Promise<SearchDetail>;
+  config(): Promise<ConfigResponse>;
+
+  search(req: SearchRequest): Promise<SearchResponse>;
+  getSearch(searchId: Uuid): Promise<SearchDetail>;
+  searchDetail(searchId: Uuid): Promise<SearchDetail>;
   pending(): Promise<PendingResponse>;
-  decide(searchId: string, decision: DecisionRequest): Promise<void>;
-  person(personId: string, searchId: string): Promise<PersonDetail>;
-  graph(
-    personId: string,
-    options?: { depth?: number; maxNodes?: number },
-  ): Promise<GraphResponse>;
-  createPerson(person: PersonCreate): Promise<PersonCreated>;
-  createEmbedding(personId: string, embedding: EmbeddingCreate): Promise<EmbeddingCreated>;
-  presignMedia(personId: string, media: MediaCreate): Promise<MediaPresigned>;
+  /** Write-once. A second call returns 409 `DECISION_ALREADY_RECORDED`. */
+  decide(searchId: Uuid, req: DecisionRequest): Promise<void>;
+
+  createPerson(body: PersonCreate): Promise<PersonCreated>;
+  addEmbedding(personId: Uuid, body: EmbeddingCreate): Promise<EmbeddingCreated>;
+  createEmbedding(personId: Uuid, body: EmbeddingCreate): Promise<EmbeddingCreated>;
+  createMedia(personId: Uuid, body?: MediaCreate): Promise<MediaPresigned>;
+  presignMedia(personId: Uuid, body?: MediaCreate): Promise<MediaPresigned>;
   uploadMedia(reservation: MediaPresigned, body: Blob | ArrayBuffer): Promise<void>;
-  commitMedia(personId: string, mediaId: string, media: MediaCommit): Promise<MediaCommitted>;
+  commitMedia(personId: Uuid, mediaId: Uuid, body: MediaCommit): Promise<MediaCommitted>;
+  /** `searchId` is the purpose binding. Without it: 403. */
+  getPerson(personId: Uuid, searchId: Uuid): Promise<PersonDetail>;
+  person(personId: Uuid, searchId: Uuid): Promise<PersonDetail>;
+
+  graph(personId: Uuid, opts?: GraphOptions): Promise<GraphResponse>;
+  auditVerify(opts?: AuditVerifyOptions): Promise<AuditVerifyResponse>;
 }
 
-function defaultRequestId(): string {
-  return `mobile-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+type QueryValue = string | number | undefined;
+
+interface RequestSpec {
+  method: 'GET' | 'POST';
+  path: string;
+  query?: Record<string, QueryValue>;
+  body?: unknown;
+  /** 204 endpoints have no body to parse. */
+  expectNoContent?: boolean;
+  authenticated?: boolean;
 }
 
-function isErrorEnvelope(value: unknown): value is ApiErrorEnvelope {
-  if (typeof value !== 'object' || value === null || !('error' in value)) return false;
-  const error = value.error;
+/**
+ * An unbound `globalThis.fetch` throws "Illegal invocation" in browsers and in
+ * React Native, so it has to be bound to its owner before being stored.
+ */
+function resolveFetch(custom: FetchLike | undefined): FetchLike {
+  if (custom) return custom;
+  if (typeof globalThis.fetch !== 'function') {
+    throw new Error('@perigee/api-client requires a global fetch, or an explicit `fetch` option');
+  }
+  return globalThis.fetch.bind(globalThis) as FetchLike;
+}
+
+/**
+ * `crypto.randomUUID` is present in Node 20+ and modern browsers but not on
+ * every React Native runtime, so there is a fallback. This value is echoed back
+ * by the server and written into the audit log; it does not need to be
+ * unguessable, only unique.
+ */
+function newRequestId(): string {
+  const cryptoRef = globalThis.crypto as Crypto | undefined;
+  if (cryptoRef && typeof cryptoRef.randomUUID === 'function') return cryptoRef.randomUUID();
+
+  let out = '';
+  for (let i = 0; i < 36; i++) {
+    if (i === 8 || i === 13 || i === 18 || i === 23) out += '-';
+    else if (i === 14) out += '4';
+    else if (i === 19) out += ((Math.random() * 4) | 8).toString(16);
+    else out += ((Math.random() * 16) | 0).toString(16);
+  }
+  return out;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function buildUrl(baseUrl: string, path: string, query: Record<string, QueryValue> | undefined) {
+  const url = `${baseUrl}${path}`;
+  if (!query) return url;
+
+  const parts: string[] = [];
+  for (const [key, value] of Object.entries(query)) {
+    if (value === undefined) continue;
+    parts.push(`${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`);
+  }
+  return parts.length === 0 ? url : `${url}?${parts.join('&')}`;
+}
+
+async function errorFromResponse(
+  response: Response,
+  requestId: string,
+): Promise<PerigeeApiError> {
+  const echoed = response.headers.get(REQUEST_ID_HEADER) ?? requestId;
+
+  let body: unknown;
+  try {
+    body = await response.json();
+  } catch {
+    return new PerigeeApiError({
+      code: 'INVALID_RESPONSE',
+      message: `HTTP ${response.status} with an unreadable body`,
+      requestId: echoed,
+      httpStatus: response.status,
+    });
+  }
+
   return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    typeof error.code === 'string' &&
-    'message' in error &&
-    typeof error.message === 'string'
+    parseErrorEnvelope(body, response.status, echoed) ??
+    new PerigeeApiError({
+      code: 'INVALID_RESPONSE',
+      message: `HTTP ${response.status} did not carry an error envelope`,
+      requestId: echoed,
+      httpStatus: response.status,
+    })
   );
 }
 
-function requireObject<T>(payload: unknown, contract: string): T {
-  if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
-    throw new PerigeeApiError({
-      status: 200,
-      code: 'INVALID_RESPONSE',
-      message: `${contract} response was not a JSON object`,
-    });
-  }
-  return payload as T;
-}
-
-export function createPerigeeClient(options: PerigeeClientOptions): PerigeeClient {
+export function createClient(options: ClientOptions): PerigeeClient {
   const baseUrl = options.baseUrl.replace(/\/+$/, '');
-  const fetch = options.fetch ?? globalThis.fetch;
-  const requestId = options.requestId ?? defaultRequestId;
-  const timeoutMs = options.timeoutMs ?? 15_000;
+  const doFetch = resolveFetch(options.fetch);
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
-  async function requestJson(
-    path: string,
-    init: RequestInit = {},
-    authenticated = true,
-  ): Promise<unknown> {
+  async function once<T>(spec: RequestSpec): Promise<T> {
+    const requestId = options.requestId?.() ?? newRequestId();
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
-    const headers = new Headers(init.headers);
-    headers.set('Accept', 'application/json');
-    headers.set('X-Request-ID', requestId());
-    if (init.body !== undefined) headers.set('Content-Type', 'application/json');
-    if (authenticated) {
-      headers.set('X-Perigee-Device-Key', options.deviceKey);
-      headers.set('X-Perigee-Officer-Id', options.officerId);
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    const headers: Record<string, string> = { [REQUEST_ID_HEADER]: requestId };
+    if (spec.authenticated !== false) {
+      headers[DEVICE_KEY_HEADER] = options.deviceKey;
+      headers[OFFICER_ID_HEADER] = options.officerId;
     }
+    if (spec.body !== undefined) headers['Content-Type'] = 'application/json';
 
     try {
-      const response = await fetch(`${baseUrl}${path}`, {
-        ...init,
-        headers,
-        signal: controller.signal,
-      });
-      const payload: unknown = await response.json().catch(() => null);
-      if (!response.ok) {
-        if (isErrorEnvelope(payload)) {
+      let response: Response;
+      try {
+        response = await doFetch(buildUrl(baseUrl, spec.path, spec.query), {
+          method: spec.method,
+          headers,
+          ...(spec.body === undefined ? {} : { body: JSON.stringify(spec.body) }),
+          signal: controller.signal,
+        });
+      } catch (cause) {
+        if (controller.signal.aborted) {
           throw new PerigeeApiError({
-            status: response.status,
-            code: payload.error.code,
-            message: payload.error.message,
-            detail: payload.error.detail,
-            requestId: payload.error.request_id ?? response.headers.get('X-Request-ID'),
+            code: 'TIMEOUT',
+            message: `${spec.method} ${spec.path} exceeded ${timeoutMs} ms`,
+            detail: { path: spec.path, timeout_ms: timeoutMs },
+            requestId,
+            httpStatus: 0,
           });
         }
         throw new PerigeeApiError({
-          status: response.status,
-          code: 'HTTP_ERROR',
-          message: `Perigee API returned HTTP ${response.status}`,
-          requestId: response.headers.get('X-Request-ID'),
+          code: 'NETWORK_ERROR',
+          message: cause instanceof Error ? cause.message : String(cause),
+          detail: { path: spec.path },
+          requestId,
+          httpStatus: 0,
         });
       }
-      return payload;
-    } catch (error) {
-      if (error instanceof PerigeeApiError) throw error;
-      if (error instanceof Error && error.name === 'AbortError') {
+
+      if (!response.ok) throw await errorFromResponse(response, requestId);
+      if (spec.expectNoContent || response.status === 204) return undefined as T;
+
+      try {
+        return (await response.json()) as T;
+      } catch {
         throw new PerigeeApiError({
-          status: 0,
-          code: 'TIMEOUT',
-          message: `Perigee API did not respond within ${timeoutMs} ms`,
+          code: 'INVALID_RESPONSE',
+          message: `${spec.method} ${spec.path} returned a body that is not JSON`,
+          requestId: response.headers.get(REQUEST_ID_HEADER) ?? requestId,
+          httpStatus: response.status,
         });
       }
-      throw new PerigeeApiError({
-        status: 0,
-        code: 'NETWORK_ERROR',
-        message: error instanceof Error ? error.message : 'Network request failed',
-      });
     } finally {
-      clearTimeout(timeout);
+      clearTimeout(timer);
+    }
+  }
+
+  /**
+   * ONLY idempotent GETs are retried.
+   *
+   * Retrying `POST /v1/search` burns one of the device's three pending-decision
+   * slots per attempt, so a flaky connection would lock the officer out of the
+   * feature by itself. Retrying a decision hits the write-once 409. Both
+   * failures are silent from the caller's side, which is why the guard is
+   * structural — the retry loop is only ever entered for a GET.
+   */
+  async function send<T>(spec: RequestSpec): Promise<T> {
+    const maxAttempts = spec.method === 'GET' ? MAX_GET_RETRIES + 1 : 1;
+
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await once<T>(spec);
+      } catch (err) {
+        const apiError =
+          err instanceof PerigeeApiError
+            ? err
+            : new PerigeeApiError({
+                code: 'NETWORK_ERROR',
+                message: err instanceof Error ? err.message : String(err),
+                requestId: '',
+                httpStatus: 0,
+              });
+
+        const retryable =
+          apiError.code === 'NETWORK_ERROR' ||
+          apiError.code === 'TIMEOUT' ||
+          RETRYABLE_STATUS.has(apiError.httpStatus);
+
+        if (attempt >= maxAttempts - 1 || !retryable) throw apiError;
+      }
+      await delay(RETRY_BASE_DELAY_MS * 2 ** attempt);
     }
   }
 
   return {
-    async health() {
-      const payload = await requestJson('/healthz', {}, false);
-      if (
-        typeof payload !== 'object' ||
-        payload === null ||
-        !('status' in payload) ||
-        typeof payload.status !== 'string' ||
-        !('dataset_mode' in payload) ||
-        typeof payload.dataset_mode !== 'string'
-      ) {
-        throw new PerigeeApiError({
-          status: 200,
-          code: 'INVALID_RESPONSE',
-          message: 'The health response did not match the Perigee contract',
-        });
+    health: () => send<HealthResponse>({ method: 'GET', path: '/healthz', authenticated: false }),
+    ready: () => send<ReadyResponse>({ method: 'GET', path: '/readyz', authenticated: false }),
+    config: () => send<ConfigResponse>({ method: 'GET', path: '/v1/config', authenticated: false }),
+
+    search: async (req) => {
+      const response = await send<SearchResponse>({ method: 'POST', path: '/v1/search', body: req });
+      if (!isSearchResponse(response)) {
+        throw new PerigeeApiError({ code: 'INVALID_RESPONSE', message: 'Search response violated the ranked-candidate contract', httpStatus: 200 });
       }
-      return { status: payload.status, dataset_mode: payload.dataset_mode };
+      return response;
     },
 
-    async ready() {
-      return requireObject<ReadyResponse>(
-        await requestJson('/readyz', {}, false),
-        'Readiness',
-      );
-    },
+    getSearch: (searchId) =>
+      send<SearchDetail>({ method: 'GET', path: `/v1/search/${encodeURIComponent(searchId)}` }),
+    searchDetail: (searchId) =>
+      send<SearchDetail>({ method: 'GET', path: `/v1/search/${encodeURIComponent(searchId)}` }),
 
-    async config() {
-      return requireObject<RuntimeConfig>(
-        await requestJson('/v1/config', {}, false),
-        'Runtime config',
-      );
-    },
+    pending: () => send<PendingResponse>({ method: 'GET', path: '/v1/search/pending' }),
 
-    async search(searchRequest) {
-      const payload = await requestJson('/v1/search', {
+    decide: (searchId, req) =>
+      send<void>({
         method: 'POST',
-        body: JSON.stringify(searchRequest),
-      });
-      if (!isSearchResponse(payload)) {
-        throw new PerigeeApiError({
-          status: 200,
-          code: 'INVALID_RESPONSE',
-          message: 'The search response did not match the ranked-candidate contract',
-        });
-      }
-      return payload;
-    },
+        path: `/v1/search/${encodeURIComponent(searchId)}/decision`,
+        body: req,
+        expectNoContent: true,
+      }),
 
-    async searchDetail(searchId) {
-      return requireObject<SearchDetail>(
-        await requestJson(`/v1/search/${encodeURIComponent(searchId)}`),
-        'Search detail',
-      );
-    },
+    createPerson: (body) => send<PersonCreated>({ method: 'POST', path: '/v1/person', body }),
 
-    async pending() {
-      return requireObject<PendingResponse>(
-        await requestJson('/v1/search/pending'),
-        'Pending searches',
-      );
-    },
-
-    async decide(searchId, decision) {
-      await requestJson(`/v1/search/${encodeURIComponent(searchId)}/decision`, {
+    addEmbedding: (personId, body) =>
+      send<EmbeddingCreated>({
         method: 'POST',
-        body: JSON.stringify(decision),
-      });
-    },
+        path: `/v1/person/${encodeURIComponent(personId)}/embedding`,
+        body,
+      }),
+    createEmbedding: (personId, body) =>
+      send<EmbeddingCreated>({ method: 'POST', path: `/v1/person/${encodeURIComponent(personId)}/embedding`, body }),
 
-    async person(personId, searchId) {
-      return requireObject<PersonDetail>(
-        await requestJson(
-          `/v1/person/${encodeURIComponent(personId)}?search_id=${encodeURIComponent(searchId)}`,
-        ),
-        'Person',
-      );
-    },
-
-    async graph(personId, graphOptions = {}) {
-      const query: string[] = [];
-      if (graphOptions.depth !== undefined) query.push(`depth=${graphOptions.depth}`);
-      if (graphOptions.maxNodes !== undefined) query.push(`max_nodes=${graphOptions.maxNodes}`);
-      const suffix = query.length > 0 ? `?${query.join('&')}` : '';
-      return requireObject<GraphResponse>(
-        await requestJson(`/v1/graph/${encodeURIComponent(personId)}${suffix}`),
-        'Graph',
-      );
-    },
-
-    async createPerson(person) {
-      return requireObject<PersonCreated>(
-        await requestJson('/v1/person', {
-          method: 'POST',
-          body: JSON.stringify(person),
-        }),
-        'Person creation',
-      );
-    },
-
-    async createEmbedding(personId, embedding) {
-      return requireObject<EmbeddingCreated>(
-        await requestJson(`/v1/person/${encodeURIComponent(personId)}/embedding`, {
-          method: 'POST',
-          body: JSON.stringify(embedding),
-        }),
-        'Embedding creation',
-      );
-    },
-
-    async presignMedia(personId, media) {
-      return requireObject<MediaPresigned>(
-        await requestJson(`/v1/person/${encodeURIComponent(personId)}/media`, {
-          method: 'POST',
-          body: JSON.stringify(media),
-        }),
-        'Media reservation',
-      );
-    },
-
+    createMedia: (personId, body) =>
+      send<MediaPresigned>({
+        method: 'POST',
+        path: `/v1/person/${encodeURIComponent(personId)}/media`,
+        body: body ?? {},
+      }),
+    presignMedia: (personId, body) =>
+      send<MediaPresigned>({ method: 'POST', path: `/v1/person/${encodeURIComponent(personId)}/media`, body: body ?? {} }),
     async uploadMedia(reservation, body) {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), timeoutMs);
-      try {
-        const response = await fetch(reservation.upload_url, {
-          method: reservation.method || 'PUT',
-          headers: reservation.required_headers,
-          body,
-          signal: controller.signal,
-        });
-        if (!response.ok) {
-          throw new PerigeeApiError({
-            status: response.status,
-            code: 'UPLOAD_FAILED',
-            message: `Object storage returned HTTP ${response.status}`,
-          });
-        }
-      } catch (error) {
-        if (error instanceof PerigeeApiError) throw error;
-        if (error instanceof Error && error.name === 'AbortError') {
-          throw new PerigeeApiError({
-            status: 0,
-            code: 'UPLOAD_TIMEOUT',
-            message: `Object upload did not respond within ${timeoutMs} ms`,
-          });
-        }
-        throw new PerigeeApiError({
-          status: 0,
-          code: 'UPLOAD_NETWORK_ERROR',
-          message: error instanceof Error ? error.message : 'Object upload failed',
-        });
-      } finally {
-        clearTimeout(timeout);
-      }
+      const response = await doFetch(reservation.upload_url, {
+        method: reservation.method || 'PUT',
+        headers: reservation.required_headers,
+        body,
+      });
+      if (!response.ok) throw new PerigeeApiError({ code: 'UPLOAD_FAILED', message: `Object storage returned HTTP ${response.status}`, httpStatus: response.status });
     },
 
-    async commitMedia(personId, mediaId, media) {
-      return requireObject<MediaCommitted>(
-        await requestJson(
-          `/v1/person/${encodeURIComponent(personId)}/media/${encodeURIComponent(mediaId)}/commit`,
-          { method: 'POST', body: JSON.stringify(media) },
-        ),
-        'Media commit',
-      );
-    },
+    commitMedia: (personId, mediaId, body) =>
+      send<MediaCommitted>({
+        method: 'POST',
+        path: `/v1/person/${encodeURIComponent(personId)}/media/${encodeURIComponent(mediaId)}/commit`,
+        body,
+      }),
+
+    getPerson: (personId, searchId) =>
+      send<PersonDetail>({
+        method: 'GET',
+        path: `/v1/person/${encodeURIComponent(personId)}`,
+        query: { search_id: searchId },
+      }),
+    person: (personId, searchId) =>
+      send<PersonDetail>({ method: 'GET', path: `/v1/person/${encodeURIComponent(personId)}`, query: { search_id: searchId } }),
+
+    graph: (personId, opts) =>
+      send<GraphResponse>({
+        method: 'GET',
+        path: `/v1/graph/${encodeURIComponent(personId)}`,
+        query: {
+          depth: opts?.depth,
+          min_weight: opts?.min_weight,
+          edge_types: opts?.edge_types?.join(','),
+          limit: opts?.limit ?? opts?.maxNodes,
+        },
+      }),
+
+    auditVerify: (opts) =>
+      send<AuditVerifyResponse>({
+        method: 'GET',
+        path: '/v1/audit/verify',
+        query: { from_seq: opts?.from_seq, to_seq: opts?.to_seq },
+      }),
   };
 }
+
+export type PerigeeClientOptions = ClientOptions;
+export const createPerigeeClient = createClient;

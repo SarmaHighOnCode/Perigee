@@ -72,3 +72,13 @@ export interface CameraCaptureEvent {
   media: MediaRecord;
   latencyMs: number;
 }
+
+export interface CaptureResult {
+  uri: string;
+  width: number | null;
+  height: number | null;
+  bytes: number | null;
+  mimeType: string;
+  capturedAt: string;
+  latencyMs: number;
+}

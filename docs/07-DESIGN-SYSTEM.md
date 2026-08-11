@@ -121,20 +121,30 @@ NN/g specifically flags neobrutalist palettes for contrast failures. **Rule: acc
 touch each other as foreground/background.** Text on an accent fill is always `ink`; text on a dark
 surface is always `bone` or an accent.
 
+Computed to WCAG 2.1, not estimated. Asserted in
+`packages/design-tokens/src/__tests__/contrast.test.ts`, which fails if either a ratio drifts or a
+verdict stops holding — so the palette cannot be nudged without the table noticing.
+
 | Foreground | Background | Ratio | Verdict |
 | --- | --- | --- | --- |
-| `ink` #0A0A0A | `paper` #FFFEF0 | 19.8 : 1 | AAA |
-| `ink` | `signal` #FFE600 | 15.9 : 1 | AAA |
-| `ink` | `data` #00C2CB | 8.9 : 1 | AAA |
-| `ink` | `clear` #00C853 | 8.2 : 1 | AAA |
-| `ink` | `alert` #FF3EA5 | 6.4 : 1 | AA (large + body) |
-| `ink` | `warn` #FF6B00 | 6.1 : 1 | AA |
-| `bone` #E8E6D9 | `void` #0B0B10 | 15.1 : 1 | AAA |
-| `data` | `void` | 10.1 : 1 | AAA |
-| ~~`signal`~~ | ~~`data`~~ | 1.8 : 1 | ❌ **banned pairing** |
-| ~~`alert`~~ | ~~`warn`~~ | 1.1 : 1 | ❌ **banned pairing** |
+| `ink` #0A0A0A | `paper` #FFFEF0 | 19.50 : 1 | AAA |
+| `ink` | `signal` #FFE600 | 15.62 : 1 | AAA |
+| `ink` | `data` #00C2CB | 9.03 : 1 | AAA |
+| `ink` | `clear` #00C853 | 8.85 : 1 | AAA |
+| `ink` | `warn` #FF6B00 | 6.93 : 1 | AA |
+| `ink` | `alert` #FF3EA5 | 6.11 : 1 | AA (large + body) |
+| `bone` #E8E6D9 | `void` #0B0B10 | 15.66 : 1 | AAA |
+| `data` | `void` | 8.96 : 1 | AAA |
+| ~~`signal`~~ | ~~`data`~~ | 1.73 : 1 | ❌ **banned pairing** |
+| ~~`alert`~~ | ~~`warn`~~ | 1.13 : 1 | ❌ **banned pairing** |
 
-The last two are enforced by a lint rule in `packages/ui`, not by discipline.
+The banned pairs are asserted below AA in **both** directions, so neither can be used as foreground
+or background for the other.
+
+> **Earlier revisions of this table carried hand-rounded figures**, seven of which were wrong by up
+> to 1.14 (`data` on `void` was printed as 10.1 against an actual 8.96). Every verdict still held,
+> so nothing needed repalletting — but a table of accessibility numbers that nobody computed is
+> worth less than no table. They are now generated and tested.
 
 **Colour is never the sole channel.** Every band carries a text label (`STRONG CANDIDATE`,
 `INSUFFICIENT`) and a distinct border treatment, so the interface survives both deuteranopia and a

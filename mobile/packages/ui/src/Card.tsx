@@ -1,6 +1,6 @@
-import { palette, space } from '@perigee/design-tokens';
+import { palette, space, type ElevationLevel } from '@perigee/design-tokens';
 import type { PropsWithChildren, ReactNode } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { Brut, type BrutProps } from './Brut';
 
@@ -10,6 +10,9 @@ export interface CardProps extends PropsWithChildren {
   trailing?: ReactNode;
   tone?: BrutProps['tone'];
   shadow?: BrutProps['shadow'];
+  accent?: BrutProps['tone'];
+  level?: ElevationLevel;
+  style?: StyleProp<ViewStyle>;
 }
 
 export function Card({
@@ -19,9 +22,11 @@ export function Card({
   trailing,
   tone = 'neutral',
   shadow = 5,
+  level = 2,
+  style,
 }: CardProps) {
   return (
-    <Brut shadow={shadow} tone={tone}>
+    <Brut shadow={shadow} tone={tone} level={level} style={style}>
       <View style={styles.body}>
         {eyebrow || title || trailing ? (
           <View style={styles.heading}>

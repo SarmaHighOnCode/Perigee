@@ -5,7 +5,7 @@ import { getTonePresentation } from './semantics';
 
 export interface StatusChipProps {
   label?: string;
-  tone: Tone;
+  tone: Tone | 'neutral';
 }
 
 export function StatusChip({ label, tone }: StatusChipProps) {

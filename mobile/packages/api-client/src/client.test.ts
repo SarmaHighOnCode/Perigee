@@ -145,7 +145,7 @@ describe('createPerigeeClient', () => {
         dataset_mode: 'synthetic', server_time: '2026-08-11T12:00:00Z',
       }))
       .mockResolvedValueOnce(json({
-        root_person_id: 'person-1', nodes: [], edges: [], truncated: false,
+        root: 'person-1', depth: 2, nodes: [], edges: [], communities: [], truncated: false,
         dataset_mode: 'synthetic', server_time: '2026-08-11T12:00:00Z',
       }));
     const client = createPerigeeClient({
@@ -155,13 +155,13 @@ describe('createPerigeeClient', () => {
     await client.pending();
     await client.decide('search-1', { decision: 'NO_MATCH', latency_ms: 1200 });
     await client.person('person-1', 'search-1');
-    await client.graph('person-1', { depth: 2, maxNodes: 100 });
+    await client.graph('person-1', { depth: 2, limit: 100 });
 
     expect(fetch.mock.calls.map(([url]) => url)).toEqual([
       'https://api.example.test/v1/search/pending',
       'https://api.example.test/v1/search/search-1/decision',
       'https://api.example.test/v1/person/person-1?search_id=search-1',
-      'https://api.example.test/v1/graph/person-1?depth=2&max_nodes=100',
+      'https://api.example.test/v1/graph/person-1?depth=2&limit=100',
     ]);
     expect(fetch.mock.calls[1]?.[1]?.method).toBe('POST');
   });

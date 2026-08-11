@@ -9,7 +9,7 @@ import { usePerigeeClient } from '../../src/api/usePerigeeClient';
 export default function GraphScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const client = usePerigeeClient();
-  const query = useQuery({ queryKey: ['graph', id], queryFn: () => client.graph(id, { depth: 2, maxNodes: 100 }) });
+  const query = useQuery({ queryKey: ['graph', id], queryFn: () => client.graph(id, { depth: 2, limit: 100 }) });
   return (
     <Screen eyebrow="EVIDENCE-BACKED LINKS" title="Relationship graph">
       <SyntheticBanner compact />
@@ -30,7 +30,7 @@ export default function GraphScreen() {
             <Text style={styles.orbit}>◎—●—◎{query.data.edges.length > 2 ? '—●—◎' : ''}</Text>
             <Text style={styles.copy}>Interactive Skia orbit rendering is a later visualization layer. The current screen verifies the protected graph contract without hiding evidence state.</Text>
           </Card>
-          <Card eyebrow="Root person" title={query.data.root_person_id}>
+          <Card eyebrow="Root person" title={query.data.root}>
             <Text style={styles.mono}>Depth 2 · maximum 100 nodes</Text>
           </Card>
         </>

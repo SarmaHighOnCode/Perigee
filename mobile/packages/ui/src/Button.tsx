@@ -4,18 +4,22 @@ import {
   typeScale,
   type Tone,
 } from '@perigee/design-tokens';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import { getTonePresentation, minimumButtonHeight } from './semantics';
 
 export interface ButtonProps {
   label: string;
   onPress: () => void;
-  tone?: Tone;
+  tone?: Tone | 'neutral';
   size?: 'primary' | 'secondary';
   disabled?: boolean;
   loading?: boolean;
   accessibilityHint?: string;
+  variant?: 'solid' | 'outline' | 'ghost';
+  level?: 0 | 1 | 2 | 3 | 4;
+  style?: StyleProp<ViewStyle>;
+  testID?: string;
 }
 
 export function Button({
@@ -26,11 +30,14 @@ export function Button({
   disabled = false,
   loading = false,
   accessibilityHint,
+  variant = 'solid',
+  style,
+  testID,
 }: ButtonProps) {
   const { backgroundColor } = getTonePresentation(tone);
   const blocked = disabled || loading;
   return (
-    <View style={styles.frame}>
+    <View style={[styles.frame, style]}>
       <View pointerEvents="none" style={styles.shadow} />
       <Pressable
         accessibilityHint={accessibilityHint}
@@ -38,14 +45,16 @@ export function Button({
         accessibilityRole="button"
         accessibilityState={{ busy: loading, disabled: blocked }}
         disabled={blocked}
+        testID={testID}
         onPress={onPress}
         style={({ pressed }) => [
           styles.button,
           {
-            backgroundColor: blocked ? palette.bone : backgroundColor,
+            backgroundColor: blocked ? palette.bone : variant === 'solid' ? backgroundColor : palette.paper,
             minHeight: minimumButtonHeight(size),
           },
           pressed && !blocked ? styles.pressed : null,
+          variant === 'ghost' ? styles.ghost : null,
         ]}
       >
         <Text style={styles.label}>{loading ? 'WORKING…' : label}</Text>
@@ -81,6 +90,7 @@ const styles = StyleSheet.create({
       { translateY: structure.shadowOffset },
     ],
   },
+  ghost: { borderWidth: 0 },
   label: {
     color: palette.ink,
     fontFamily: 'Archivo',

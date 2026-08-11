@@ -5,19 +5,10 @@ import {
   type Tone,
 } from '@perigee/design-tokens';
 
-const toneColors: Record<Tone, string> = {
-  signal: palette.signal,
-  alert: palette.alert,
-  data: palette.data,
-  clear: palette.clear,
-  warn: palette.warn,
-  neutral: palette.paper,
-};
-
-export function getTonePresentation(tone: Tone) {
+export function getTonePresentation(tone: Tone | 'neutral') {
   return {
-    backgroundColor: toneColors[tone],
-    label: statusLabels[tone],
+    backgroundColor: tone === 'neutral' ? palette.paper : palette[tone],
+    label: tone in statusLabels ? statusLabels[tone as keyof typeof statusLabels] : tone.toUpperCase(),
   };
 }
 

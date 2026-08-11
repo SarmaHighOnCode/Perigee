@@ -45,5 +45,5 @@
     "blurred-face": "One fictional adult with severe horizontal camera-motion blur.",
     "dark-face": "One fictional adult severely underexposed with facial details mostly lost in shadow."
   },
-  "shared_constraints": "Photorealistic fictional adults only; neutral studio backgrounds; no celebrity or public-figure resemblance; no names, text, logos, watermarks, accessories, or downloaded real-person photographs. Identity-preserving variants use only that identity's generated master as their image reference."
+  "shared_constraints": "Photorealistic fictional adults only; neutral studio backgrounds; no celebrity or public-figure resemblance; no names, text, logos, watermarks, accessories, or downloaded real-person photographs. Every identity-preserving variant uses that identity's generated master as the identity reference; the stronger progressive views may additionally use that identity's moderate same-direction view only to make the pose progression explicit."
 }

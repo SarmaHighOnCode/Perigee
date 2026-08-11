@@ -7,6 +7,8 @@ import argparse
 import binascii
 import hashlib
 import json
+import os
+import stat
 import struct
 import sys
 from pathlib import Path
@@ -26,6 +28,58 @@ ENROLLMENT_POSES = (
 )
 PROBE_POSES = ("probe-1", "probe-2", "probe-3")
 CONTROLS = ("no-face", "two-faces", "blurred-face", "dark-face")
+
+
+def is_reparse_point(path: Path) -> bool:
+    """Return whether path is a symlink, junction, or other reparse point."""
+    metadata = path.lstat()
+    if stat.S_ISLNK(metadata.st_mode):
+        return True
+    reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+    if getattr(metadata, "st_file_attributes", 0) & reparse_flag:
+        return True
+    is_junction = getattr(path, "is_junction", None)
+    return bool(is_junction and is_junction())
+
+
+def ensure_contained(path: Path, root: Path) -> None:
+    """Reject lexical entries that resolve outside the fixture image root."""
+    try:
+        path.resolve(strict=True).relative_to(root)
+    except ValueError as error:
+        raise ValueError(f"fixture path resolves outside images root: {path}") from error
+
+
+def enumerate_image_tree() -> tuple[set[Path], set[Path]]:
+    """Enumerate every entry without following reparse points."""
+    if not IMAGES_ROOT.is_dir():
+        raise ValueError(f"missing fixture images directory: {IMAGES_ROOT}")
+    if is_reparse_point(IMAGES_ROOT):
+        raise ValueError(f"fixture images root is a symlink or reparse point: {IMAGES_ROOT}")
+
+    root = IMAGES_ROOT.resolve(strict=True)
+    files: set[Path] = set()
+    directories: set[Path] = set()
+
+    def visit(directory: Path) -> None:
+        with os.scandir(directory) as entries:
+            for entry in sorted(entries, key=lambda item: item.name):
+                path = Path(entry.path)
+                relative = path.relative_to(IMAGES_ROOT)
+                if is_reparse_point(path):
+                    raise ValueError(f"fixture contains a symlink or reparse point: {relative}")
+                metadata = path.lstat()
+                ensure_contained(path, root)
+                if stat.S_ISDIR(metadata.st_mode):
+                    directories.add(relative)
+                    visit(path)
+                elif stat.S_ISREG(metadata.st_mode):
+                    files.add(relative)
+                else:
+                    raise ValueError(f"fixture contains an unsupported filesystem entry: {relative}")
+
+    visit(IMAGES_ROOT)
+    return files, directories
 
 
 def read_png_size(path: Path) -> tuple[int, int]:
@@ -91,15 +145,24 @@ def expected_inventory() -> list[tuple[Path, str | None, str, str]]:
 def build_manifest() -> dict[str, object]:
     inventory = expected_inventory()
     expected_paths = {relative for relative, *_ in inventory}
-    actual_paths = {
-        image.relative_to(IMAGES_ROOT)
-        for image in IMAGES_ROOT.rglob("*.png")
-        if image.is_file()
+    expected_directories = {
+        parent
+        for relative in expected_paths
+        for parent in relative.parents
+        if parent != Path(".")
     }
+    actual_paths, actual_directories = enumerate_image_tree()
     missing = sorted(expected_paths - actual_paths)
     unexpected = sorted(actual_paths - expected_paths)
-    if missing or unexpected:
-        raise ValueError(f"fixture inventory mismatch: missing={missing}, unexpected={unexpected}")
+    missing_directories = sorted(expected_directories - actual_directories)
+    unexpected_directories = sorted(actual_directories - expected_directories)
+    if missing or unexpected or missing_directories or unexpected_directories:
+        raise ValueError(
+            "fixture inventory mismatch: "
+            f"missing={missing}, unexpected={unexpected}, "
+            f"missing_directories={missing_directories}, "
+            f"unexpected_directories={unexpected_directories}"
+        )
 
     entries: list[dict[str, object]] = []
     hashes: set[str] = set()

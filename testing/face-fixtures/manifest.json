@@ -155,7 +155,7 @@
       "identity": "synth-02",
       "path": "images/synth-02/enrollment-left-1.png",
       "pose": "left-1",
-      "sha256": "0f30cc0beadbaba20e9b9050b2fa41b93924983a265da9cb8ee5568dfdc1c364",
+      "sha256": "bec164988c81d87486e29791272697a9f1da15109deb0a832b3ea5da25522c9e",
       "synthetic": true,
       "use": "enrollment",
       "width": 1254
@@ -165,7 +165,7 @@
       "identity": "synth-02",
       "path": "images/synth-02/enrollment-left-2.png",
       "pose": "left-2",
-      "sha256": "27d09fb13613bb47fe56f94106b092064afe9c4ac1061b1042e56a52fbf8c8ea",
+      "sha256": "e6dcb8e1d91afe923cafc371861013de1db4d2610adbc44f913ab2d445697d14",
       "synthetic": true,
       "use": "enrollment",
       "width": 1254
@@ -175,7 +175,7 @@
       "identity": "synth-02",
       "path": "images/synth-02/enrollment-right-1.png",
       "pose": "right-1",
-      "sha256": "0e26730893d4a5a73346cd562468ccfdd27fa22ae3ae84ef07bd555dc116d088",
+      "sha256": "b1629bf2ebc659914441bf3f54fd1f7a762a3b106ab030d9bed9cc015735bad3",
       "synthetic": true,
       "use": "enrollment",
       "width": 1254
@@ -185,7 +185,7 @@
       "identity": "synth-02",
       "path": "images/synth-02/enrollment-right-2.png",
       "pose": "right-2",
-      "sha256": "9262874e6a24344229feb5ee4d3de3d4150a7d9f71aa988e9e55e02b18413b5e",
+      "sha256": "ccd5e3a4eecaa826b4afb62f93b63e0c73324fd22192f6545df644943fde3d05",
       "synthetic": true,
       "use": "enrollment",
       "width": 1254
@@ -335,7 +335,7 @@
       "identity": "synth-04",
       "path": "images/synth-04/enrollment-left-1.png",
       "pose": "left-1",
-      "sha256": "3c6ccff4633e47ad4d70687013629b45d6dec30898aa6ce74d42e09c6a5f8bcc",
+      "sha256": "0eabdec8a056498a53c362e26e4f2a807f558cb563c8c471570c0ee62d7faa3b",
       "synthetic": true,
       "use": "enrollment",
       "width": 1254
@@ -345,7 +345,7 @@
       "identity": "synth-04",
       "path": "images/synth-04/enrollment-left-2.png",
       "pose": "left-2",
-      "sha256": "ce609ad126d018b148d88a0fb16b98f80e62f1693c4a4cc93d1b1cd3e9a372cc",
+      "sha256": "c5e999180034530460eaaa47597ec8f96a3e12443a834f1f4062c2187bf80b4f",
       "synthetic": true,
       "use": "enrollment",
       "width": 1254
@@ -355,7 +355,7 @@
       "identity": "synth-04",
       "path": "images/synth-04/enrollment-right-1.png",
       "pose": "right-1",
-      "sha256": "449c76a6f8fa088f717fa41cc1d3cdfcb9d510440b62ba30be5b3ac60fd6bbec",
+      "sha256": "d6cdbecb8fa0151ba34b41f283698b525b74d0efb5fcb2617163a562a739e1c9",
       "synthetic": true,
       "use": "enrollment",
       "width": 1254
@@ -365,7 +365,7 @@
       "identity": "synth-04",
       "path": "images/synth-04/enrollment-right-2.png",
       "pose": "right-2",
-      "sha256": "8d079e291c36675e498f3480fd9493ab6b6042a8667fcaa1fa0b2361d5b1e6dc",
+      "sha256": "97d5d25e237b5498f83674c10a87312938e8f3ec1af32e016a24fd1089dc6c34",
       "synthetic": true,
       "use": "enrollment",
       "width": 1254

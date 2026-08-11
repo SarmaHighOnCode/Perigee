@@ -1,6 +1,7 @@
 import ReactNativeBlobUtil from 'react-native-blob-util';
 import { Platform } from 'react-native';
 
+import { downloadAndroidModel } from './android-model-download';
 import type { ModelFileAdapter } from './model-cache';
 
 export const nativeModelFiles: ModelFileAdapter = {
@@ -26,31 +27,34 @@ export const nativeModelFiles: ModelFileAdapter = {
       return;
     }
 
-    const fileName = path.slice(path.lastIndexOf('/') + 1);
-    const downloadPath = `${ReactNativeBlobUtil.fs.dirs.DownloadDir}/perigee-${fileName}`;
-    if (await ReactNativeBlobUtil.fs.exists(downloadPath)) {
-      await ReactNativeBlobUtil.fs.unlink(downloadPath);
-    }
-    try {
-      const request = ReactNativeBlobUtil.config({
-        addAndroidDownloads: {
-          useDownloadManager: true,
-          notification: false,
-          mime: 'application/octet-stream',
-          path: downloadPath,
+    await downloadAndroidModel(
+      url,
+      path,
+      {
+        downloadDirectory: ReactNativeBlobUtil.fs.dirs.DownloadDir,
+        exists: (temporaryPath) => ReactNativeBlobUtil.fs.exists(temporaryPath),
+        remove: async (temporaryPath) => {
+          await ReactNativeBlobUtil.fs.unlink(temporaryPath);
         },
-      })
-        .fetch('GET', url)
-        .progress((received) => onProgress(Number(received)));
-      await request;
-      await ReactNativeBlobUtil.fs.cp(downloadPath, path);
-      await ReactNativeBlobUtil.fs.unlink(downloadPath);
-    } catch (error) {
-      if (await ReactNativeBlobUtil.fs.exists(downloadPath)) {
-        await ReactNativeBlobUtil.fs.unlink(downloadPath);
-      }
-      throw error;
-    }
+        fetch: async (downloadUrl, temporaryPath, reportProgress) => {
+          const request = ReactNativeBlobUtil.config({
+            addAndroidDownloads: {
+              useDownloadManager: true,
+              notification: false,
+              mime: 'application/octet-stream',
+              path: temporaryPath,
+            },
+          })
+            .fetch('GET', downloadUrl)
+            .progress((received) => reportProgress(Number(received)));
+          await request;
+        },
+        copy: async (source, destination) => {
+          await ReactNativeBlobUtil.fs.cp(source, destination);
+        },
+      },
+      onProgress,
+    );
   },
 
   async move(source, destination) {

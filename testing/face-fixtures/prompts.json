@@ -1,0 +1,49 @@
+{
+  "generation_date": "2026-08-12",
+  "tool": "OpenAI built-in image generation tool",
+  "policy": {
+    "adult_only": true,
+    "celebrity_resemblance": false,
+    "downloaded_photographs": false,
+    "fully_synthetic": true
+  },
+  "identities": {
+    "synth-01": {
+      "base_prompt": "Fictional adult woman, approximately 34, medium-brown skin, oval face, dark brown almond-shaped eyes, straight black shoulder-length hair tucked behind both ears, subtle freckles across the nose, no glasses, neutral expression."
+    },
+    "synth-02": {
+      "base_prompt": "Fictional adult man, approximately 46, deep-brown skin, broad rectangular face, dark brown eyes, closely cropped coiled black hair with slight gray at the temples, neat short mustache, no beard, neutral expression."
+    },
+    "synth-03": {
+      "base_prompt": "Fictional adult woman, approximately 58, light olive skin, heart-shaped face, hazel eyes, short wavy salt-and-pepper hair, faint smile lines, no glasses, neutral expression."
+    },
+    "synth-04": {
+      "base_prompt": "Fictional adult man, approximately 29, warm tan skin, long oval face, dark brown eyes, thick wavy dark hair cropped above the ears, clean-shaven, small fictional mole high on the left cheek, neutral expression."
+    },
+    "synth-05": {
+      "base_prompt": "Fictional adult woman, approximately 41, pale freckled skin, square face, green-gray eyes, natural copper-red curly chin-length hair, no glasses, neutral expression."
+    },
+    "synth-06": {
+      "base_prompt": "Fictional adult man, approximately 52, medium olive-brown skin, round face, dark eyes, short straight salt-and-pepper hair, clean-shaven, slightly arched eyebrows, neutral expression.",
+      "negative_identity": true
+    }
+  },
+  "shot_variations": {
+    "frontal-1": "Centered frontal master, neutral expression, soft even studio illumination.",
+    "frontal-2": "Centered frontal variant, neutral expression, warmer illumination and slightly farther camera distance.",
+    "left-1": "Head approximately 25 degrees left, neutral expression, soft even daylight.",
+    "left-2": "Head approximately 35 degrees left, neutral expression, cooler side illumination.",
+    "right-1": "Head approximately 25 degrees right, neutral expression, soft even daylight.",
+    "right-2": "Head approximately 35 degrees right, neutral expression, warmer side illumination.",
+    "probe-1": "Frontal probe with subtle expression or distance variation.",
+    "probe-2": "Approximately 18 to 20 degrees left with warm side illumination.",
+    "probe-3": "Approximately 18 to 20 degrees right with a small chin-angle change and cool side illumination."
+  },
+  "controls": {
+    "no-face": "Empty gray studio backdrop with an unoccupied stool and no person or face.",
+    "two-faces": "Exactly two distinct fictional adults, side by side, both faces unobstructed.",
+    "blurred-face": "One fictional adult with severe horizontal camera-motion blur.",
+    "dark-face": "One fictional adult severely underexposed with facial details mostly lost in shadow."
+  },
+  "shared_constraints": "Photorealistic fictional adults only; neutral studio backgrounds; no celebrity or public-figure resemblance; no names, text, logos, watermarks, accessories, or downloaded real-person photographs. Identity-preserving variants use only that identity's generated master as their image reference."
+}

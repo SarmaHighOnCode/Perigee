@@ -118,8 +118,9 @@ function validateLandmarks(points: FaceDetection['landmarks']): void {
  * Deterministic five-landmark pose heuristic, not a 3-D head-pose estimator.
  *
  * Coordinates follow image convention: x increases rightward and y downward.
- * Positive yaw means the nose is right of the eye midpoint; positive pitch
- * means it is below the eye midpoint. Angles are scaled by interocular distance.
+ * Positive yaw means the nose is right of the neutral landmark center; positive
+ * pitch means it is below that center. The center is halfway between the eye
+ * and mouth midpoints, and angles are scaled by interocular distance.
  */
 export function poseFromLandmarks(
   points: FaceDetection['landmarks'],
@@ -128,8 +129,14 @@ export function poseFromLandmarks(
   const leftEye = points[0];
   const rightEye = points[1];
   const nose = points[2];
+  const leftMouth = points[3];
+  const rightMouth = points[4];
   const eyeMidpointX = (leftEye.x + rightEye.x) / 2;
   const eyeMidpointY = (leftEye.y + rightEye.y) / 2;
+  const mouthMidpointX = (leftMouth.x + rightMouth.x) / 2;
+  const mouthMidpointY = (leftMouth.y + rightMouth.y) / 2;
+  const neutralCenterX = (eyeMidpointX + mouthMidpointX) / 2;
+  const neutralCenterY = (eyeMidpointY + mouthMidpointY) / 2;
   const measuredInterocularDistance = Math.hypot(
     rightEye.x - leftEye.x,
     rightEye.y - leftEye.y,
@@ -138,8 +145,8 @@ export function poseFromLandmarks(
   const interocularDistance = measuredInterocularDistance === 0 ? 1 : measuredInterocularDistance;
 
   const pose = {
-    yaw: Math.atan2(nose.x - eyeMidpointX, interocularDistance) * RADIANS_TO_DEGREES,
-    pitch: Math.atan2(nose.y - eyeMidpointY, interocularDistance) * RADIANS_TO_DEGREES,
+    yaw: Math.atan2(nose.x - neutralCenterX, interocularDistance) * RADIANS_TO_DEGREES,
+    pitch: Math.atan2(nose.y - neutralCenterY, interocularDistance) * RADIANS_TO_DEGREES,
   };
   assertFinite(pose.yaw, 'yaw');
   assertFinite(pose.pitch, 'pitch');
@@ -176,7 +183,7 @@ export function toQualitySignals(
   validateRgba(alignedRgba, ALIGNED_CROP_SIZE, ALIGNED_CROP_SIZE);
 
   const pose = poseFromLandmarks(face.landmarks);
-  const facePx = Math.round(Math.max(face.x2 - face.x1, face.y2 - face.y1));
+  const facePx = Math.max(face.x2 - face.x1, face.y2 - face.y1);
   assertFinite(facePx, 'face size');
   const signals: QualitySignals = {
     detScore: face.score,

@@ -40,7 +40,7 @@ function detection(overrides: Partial<FaceDetection> = {}): FaceDetection {
     landmarks: [
       { x: 30, y: 40 },
       { x: 70, y: 40 },
-      { x: 50, y: 40 },
+      { x: 50, y: 60 },
       { x: 35, y: 80 },
       { x: 65, y: 80 },
     ],
@@ -86,27 +86,42 @@ describe('pixel-derived luma measurements', () => {
 });
 
 describe('deterministic five-landmark pose heuristic', () => {
-  it('returns zero pose when the nose is at the symmetric eye midpoint', () => {
+  it('returns zero pose for realistic symmetric five-point geometry', () => {
     expect(poseFromLandmarks(detection().landmarks)).toEqual({ yaw: 0, pitch: 0 });
   });
 
-  it('pins image-coordinate signs: right/down are positive and left/up are negative', () => {
+  it('maps the canonical ArcFace frontal template to near-zero yaw and pitch', () => {
+    const canonical: FaceDetection['landmarks'] = [
+      { x: 38.2946, y: 51.6963 },
+      { x: 73.5318, y: 51.5014 },
+      { x: 56.0252, y: 71.7366 },
+      { x: 41.5493, y: 92.3655 },
+      { x: 70.7299, y: 92.2041 },
+    ];
+
+    const pose = poseFromLandmarks(canonical);
+
+    expect(pose.yaw).toBeCloseTo(-0.0019511733, 8);
+    expect(pose.pitch).toBeCloseTo(-0.3336875106, 8);
+  });
+
+  it('pins shifted-nose signs: right/down are positive and left/up are negative', () => {
     const rightAndDown = detection({
       landmarks: [
         { x: 30, y: 40 },
         { x: 70, y: 40 },
-        { x: 60, y: 50 },
+        { x: 60, y: 70 },
         { x: 35, y: 80 },
         { x: 65, y: 80 },
       ],
     });
     const leftAndUp = detection({
       landmarks: [
+        { x: 30, y: 40 },
+        { x: 70, y: 40 },
         { x: 40, y: 50 },
-        { x: 80, y: 50 },
-        { x: 50, y: 40 },
-        { x: 45, y: 80 },
-        { x: 75, y: 80 },
+        { x: 35, y: 80 },
+        { x: 65, y: 80 },
       ],
     });
 
@@ -157,6 +172,18 @@ describe('quality signal assembly', () => {
     expect(signals.blur).toBe(0);
     expect(signals.yaw).toBe(0);
     expect(signals.pitch).toBe(0);
+  });
+
+  it('preserves a fractional face dimension below the 112 px quality floor', () => {
+    const face = detection({ y1: 20.25, y2: 131.75 });
+
+    const signals = toQualitySignals(
+      face,
+      solidRgba(ALIGNED_SIZE, ALIGNED_SIZE, 128),
+      1,
+    );
+
+    expect(signals.facePx).toBe(111.5);
   });
 
   it('rejects inverted boxes, invalid detector evidence, and malformed aligned crops', () => {

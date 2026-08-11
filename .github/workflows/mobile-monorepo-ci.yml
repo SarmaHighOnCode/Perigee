@@ -68,16 +68,20 @@ jobs:
         run: |
           FOUND=$(grep -rnE '\b(MATCH FOUND|IDENTIFIED|POSITIVE MATCH)\b' \
                     --include='*.ts' --include='*.tsx' packages apps \
-                    | grep -v '__tests__' \
+                    | grep -vE '(__tests__|\.test\.tsx?:)' \
                     | grep -vE ':\s*[0-9]+:\s*(\*|//|/\*)' || true)
           if [ -n "$FOUND" ]; then
             echo "$FOUND"
             echo "::error::match-assertion language found in code"
             exit 1
           fi
+          # types.ts defensively rejects these server fields. Its compile-time
+          # and runtime contract tests enforce that they never become part of
+          # SearchResponse, so that validator is intentionally excluded here.
           FIELDS=$(grep -rnE '\b(is_match|identity_confirmed|match_found)\b' \
                      --include='*.ts' --include='*.tsx' packages apps \
-                     | grep -v '__tests__' \
+                     | grep -vE '(__tests__|\.test\.tsx?:)' \
+                     | grep -vE '^packages/api-client/src/types\.ts:' \
                      | grep -vE ':\s*[0-9]+:\s*(\*|//|/\*)' || true)
           if [ -n "$FIELDS" ]; then
             echo "$FIELDS"

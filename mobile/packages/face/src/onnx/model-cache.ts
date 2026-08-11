@@ -65,8 +65,8 @@ async function verifyDownloadedModel(
   spec: ModelSpec,
   path: string,
   files: ModelFileAdapter,
+  bytes: number,
 ): Promise<void> {
-  const bytes = await files.size(path);
   if (bytes !== spec.bytes) {
     throw new Error(`Model size mismatch for ${spec.fileName}: expected ${spec.bytes}, received ${bytes}`);
   }
@@ -105,8 +105,9 @@ async function ensureModelOnce(
     await files.download(modelUrl(spec, baseUrl), partial, (receivedBytes) => {
       report(spec, 'downloading', receivedBytes, onProgress);
     });
-    report(spec, 'verifying', spec.bytes, onProgress);
-    await verifyDownloadedModel(spec, partial, files);
+    const receivedBytes = await files.size(partial);
+    report(spec, 'verifying', receivedBytes, onProgress);
+    await verifyDownloadedModel(spec, partial, files, receivedBytes);
     await files.move(partial, target);
   } catch (error) {
     await removeIfPresent(files, partial);

@@ -175,6 +175,22 @@ describe('verified model cache', () => {
     ]);
   });
 
+  it('reports the measured partial size when verifying a truncated download', async () => {
+    const files = new MemoryModelFiles();
+    const progress: ModelProgress[] = [];
+    files.downloadProgress = [7];
+    files.downloadResult = { bytes: 7, sha256: SPEC.sha256 };
+
+    await expect(
+      ensureModel(SPEC, 'https://models.example', files, (update) => progress.push(update)),
+    ).rejects.toThrow(/size mismatch/i);
+
+    expect(progress.filter((update) => update.phase === 'verifying')).toEqual([
+      { key: SPEC.key, phase: 'verifying', receivedBytes: 7, totalBytes: SPEC.bytes },
+    ]);
+    expect(progress.some((update) => update.phase === 'ready')).toBe(false);
+  });
+
   it('serialises concurrent requests for the same model', async () => {
     const files = new MemoryModelFiles();
     const target = files.modelPath(SPEC.fileName);

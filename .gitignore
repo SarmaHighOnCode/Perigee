@@ -32,3 +32,9 @@ Thumbs.db
 *.swp
 .idea/
 .vscode/
+
+# Mobile workspace
+mobile/**/node_modules/
+mobile/**/.expo/
+mobile/**/android/
+mobile/**/ios/

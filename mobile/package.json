@@ -1,0 +1,19 @@
+{
+  "name": "perigee-mobile",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm -r --if-present test",
+    "field": "pnpm --filter @perigee/field start",
+    "field:android": "pnpm --filter @perigee/field android"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.2",
+    "vitest": "^3.0.0"
+  }
+}

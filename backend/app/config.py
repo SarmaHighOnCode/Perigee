@@ -69,6 +69,10 @@ class Settings(BaseSettings):
     rate_limit_write_per_min: int = 30
     rate_limit_read_per_min: int = 120
     rate_limit_public_per_min: int = 30
+    # "memory" is correct only for a single-process deployment. Any host that
+    # runs several instances MUST use "postgres", or each instance keeps its
+    # own counter and the configured limit is multiplied by the instance count.
+    rate_limit_backend: Literal["memory", "postgres"] = "memory"
 
     @field_validator("allowed_model_ids", "cors_origins")
     @classmethod

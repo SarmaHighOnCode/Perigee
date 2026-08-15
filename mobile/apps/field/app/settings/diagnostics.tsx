@@ -54,6 +54,6 @@ export default function DiagnosticsScreen() {
 
 const styles = StyleSheet.create({
   grid: { gap: space[4] },
-  copy: { color: palette.ink, fontFamily: 'PublicSans', fontSize: 14 },
-  error: { backgroundColor: palette.alert, borderColor: palette.ink, borderWidth: 3, color: palette.ink, fontFamily: 'PublicSansBold', padding: space[3] },
+  copy: { color: palette.primary, fontFamily: 'PublicSans', fontSize: 14 },
+  error: { backgroundColor: palette.alert, borderColor: palette.primary, borderWidth: 3, color: palette.primary, fontFamily: 'PublicSansBold', padding: space[3] },
 });

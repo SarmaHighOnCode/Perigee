@@ -40,7 +40,7 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   statusRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
-  copy: { color: palette.ink, fontFamily: 'PublicSans', fontSize: 14, lineHeight: 21 },
-  mono: { color: palette.ink, fontFamily: 'MartianMono', fontSize: 12 },
-  count: { color: palette.ink, fontFamily: 'MartianMonoBold', fontSize: 32 },
+  copy: { color: palette.primary, fontFamily: 'PublicSans', fontSize: 14, lineHeight: 21 },
+  mono: { color: palette.primary, fontFamily: 'MartianMono', fontSize: 12 },
+  count: { color: palette.primary, fontFamily: 'MartianMonoBold', fontSize: 32 },
 });

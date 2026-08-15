@@ -11,8 +11,8 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: palette.ink,
-        tabBarInactiveTintColor: palette.ink,
+        tabBarActiveTintColor: palette.primary,
+        tabBarInactiveTintColor: palette.primary,
         tabBarLabelStyle: styles.label,
         tabBarStyle: styles.bar,
       }}
@@ -28,15 +28,15 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
   bar: {
-    backgroundColor: palette.paper,
-    borderTopColor: palette.ink,
+    backgroundColor: palette.canvasSoft,
+    borderTopColor: palette.primary,
     borderTopWidth: structure.borderWidth,
     height: 72,
     paddingBottom: 7,
     paddingTop: 6,
   },
-  scanItem: { backgroundColor: palette.signal, borderLeftColor: palette.ink, borderLeftWidth: 2, borderRightColor: palette.ink, borderRightWidth: 2 },
-  icon: { color: palette.ink, fontFamily: 'Archivo', fontSize: 18, fontWeight: '900' },
+  scanItem: { backgroundColor: palette.signal, borderLeftColor: palette.primary, borderLeftWidth: 2, borderRightColor: palette.primary, borderRightWidth: 2 },
+  icon: { color: palette.primary, fontFamily: 'Archivo', fontSize: 18, fontWeight: '900' },
   iconActive: { transform: [{ translateY: -2 }] },
   label: { fontFamily: 'MartianMonoBold', fontSize: 9, letterSpacing: 0.2 },
 });

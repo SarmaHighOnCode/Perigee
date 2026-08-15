@@ -41,7 +41,7 @@ export default function GraphScreen() {
 
 const styles = StyleSheet.create({
   stats: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
-  orbit: { color: palette.ink, fontFamily: 'MartianMonoBold', fontSize: 32, textAlign: 'center' },
-  copy: { color: palette.ink, fontFamily: 'PublicSans', fontSize: 14, lineHeight: 21 },
-  mono: { color: palette.ink, fontFamily: 'MartianMono', fontSize: 11 },
+  orbit: { color: palette.primary, fontFamily: 'MartianMonoBold', fontSize: 32, textAlign: 'center' },
+  copy: { color: palette.primary, fontFamily: 'PublicSans', fontSize: 14, lineHeight: 21 },
+  mono: { color: palette.primary, fontFamily: 'MartianMono', fontSize: 11 },
 });

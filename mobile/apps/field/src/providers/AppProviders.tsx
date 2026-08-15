@@ -32,10 +32,12 @@ export function AppProviders({ children }: PropsWithChildren) {
     MartianMonoBold: MartianMono_700Bold,
     PublicSans: PublicSans_400Regular,
     PublicSansBold: PublicSans_700Bold,
+    RocketDoodle: require('../../assets/fonts/RocketDoodle.ttf'),
+    ComicSansMS: require('../../assets/fonts/comic.ttf'),
   });
 
   useEffect(() => {
-    void SystemUI.setBackgroundColorAsync(palette.paper);
+    void SystemUI.setBackgroundColorAsync(palette.canvasSoft);
     void Promise.all([
       SecureStore.getItemAsync('perigee.apiUrl'),
       SecureStore.getItemAsync('perigee.deviceKey'),
@@ -59,7 +61,7 @@ export function AppProviders({ children }: PropsWithChildren) {
       <SafeAreaProvider>
         <ReducedMotionConfig mode={ReduceMotion.System} />
         <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-        <StatusBar backgroundColor={palette.ink} style="light" />
+        <StatusBar backgroundColor={palette.primary} style="light" />
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
@@ -69,7 +71,7 @@ const styles = StyleSheet.create({
   root: { flex: 1 },
   loading: {
     alignItems: 'center',
-    backgroundColor: palette.ink,
+    backgroundColor: palette.primary,
     flex: 1,
     justifyContent: 'center',
   },

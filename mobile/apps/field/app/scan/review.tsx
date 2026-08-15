@@ -33,8 +33,8 @@ export default function ReviewCaptureScreen() {
 }
 
 const styles = StyleSheet.create({
-  previewFrame: { backgroundColor: palette.ink, borderColor: palette.ink, borderWidth: structure.borderWidth, height: 390, padding: 3 },
+  previewFrame: { backgroundColor: palette.primary, borderColor: palette.primary, borderWidth: structure.borderWidth, height: 390, padding: 3 },
   preview: { flex: 1 },
-  data: { color: palette.ink, fontFamily: 'MartianMonoBold', fontSize: 14 },
-  copy: { color: palette.ink, fontFamily: 'PublicSans', fontSize: 14, lineHeight: 21, marginTop: space[1] },
+  data: { color: palette.primary, fontFamily: 'MartianMonoBold', fontSize: 14 },
+  copy: { color: palette.primary, fontFamily: 'PublicSans', fontSize: 14, lineHeight: 21, marginTop: space[1] },
 });

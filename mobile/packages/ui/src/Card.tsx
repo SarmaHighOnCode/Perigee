@@ -1,16 +1,16 @@
-import { palette, space, type ElevationLevel } from '@perigee/design-tokens';
+import { palette, space, typeScale, radii, type ElevationLevel } from '@perigee/design-tokens';
 import type { PropsWithChildren, ReactNode } from 'react';
 import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { Brut, type BrutProps } from './Brut';
+import { Surface, type SurfaceProps } from './Surface';
 
 export interface CardProps extends PropsWithChildren {
   title?: string;
   eyebrow?: string;
   trailing?: ReactNode;
-  tone?: BrutProps['tone'];
-  shadow?: BrutProps['shadow'];
-  accent?: BrutProps['tone'];
+  tone?: SurfaceProps['tone'];
+  shadow?: SurfaceProps['shadow'];
+  accent?: SurfaceProps['tone'];
   level?: ElevationLevel;
   style?: StyleProp<ViewStyle>;
 }
@@ -21,12 +21,12 @@ export function Card({
   eyebrow,
   trailing,
   tone = 'neutral',
-  shadow = 5,
+  shadow = true,
   level = 2,
   style,
 }: CardProps) {
   return (
-    <Brut shadow={shadow} tone={tone} level={level} style={style}>
+    <Surface shadow={shadow} tone={tone} level={level} radius={radii.md} style={style}>
       <View style={styles.body}>
         {eyebrow || title || trailing ? (
           <View style={styles.heading}>
@@ -39,7 +39,7 @@ export function Card({
         ) : null}
         {children}
       </View>
-    </Brut>
+    </Surface>
   );
 }
 
@@ -58,20 +58,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   eyebrow: {
-    color: palette.ink,
-    fontFamily: 'MartianMono',
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
+    color: palette.primary,
+    ...typeScale.label,
+    fontWeight: '600',
+    opacity: 0.7,
   },
   title: {
-    color: palette.ink,
-    fontFamily: 'Archivo',
-    fontSize: 22,
-    fontWeight: '900',
-    lineHeight: 24,
+    color: palette.primary,
+    ...typeScale.h2,
     marginTop: 3,
-    textTransform: 'uppercase',
   },
 });

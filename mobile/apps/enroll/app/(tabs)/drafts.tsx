@@ -37,4 +37,4 @@ export default function DraftsScreen() {
   );
 }
 
-const styles = StyleSheet.create({ copy: { color: palette.ink, fontFamily: 'PublicSans', fontSize: 14, lineHeight: 21 } });
+const styles = StyleSheet.create({ copy: { color: palette.primary, fontFamily: 'PublicSans', fontSize: 14, lineHeight: 21 } });

@@ -28,7 +28,7 @@ export default function ReceiptScreen() {
 }
 
 const styles = StyleSheet.create({
-  id: { color: palette.ink, fontFamily: 'MartianMonoBold', fontSize: 13 },
-  copy: { color: palette.ink, fontFamily: 'PublicSans', fontSize: 14, lineHeight: 21 },
-  row: { borderBottomColor: palette.ink, borderBottomWidth: 2, color: palette.ink, fontFamily: 'MartianMonoBold', fontSize: 12, paddingVertical: 9 },
+  id: { color: palette.primary, fontFamily: 'MartianMonoBold', fontSize: 13 },
+  copy: { color: palette.primary, fontFamily: 'PublicSans', fontSize: 14, lineHeight: 21 },
+  row: { borderBottomColor: palette.primary, borderBottomWidth: 2, color: palette.primary, fontFamily: 'MartianMonoBold', fontSize: 12, paddingVertical: 9 },
 });

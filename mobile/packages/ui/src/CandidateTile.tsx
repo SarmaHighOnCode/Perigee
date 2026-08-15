@@ -11,7 +11,7 @@ import {
   type Band,
 } from '@perigee/design-tokens';
 
-import { Brut } from './Brut';
+import { Surface } from './Surface';
 import { ScoreBadge } from './ScoreBadge';
 import { bandLabel, formatScore, maskName } from './logic';
 
@@ -74,10 +74,9 @@ export function CandidateTile({
       style={[styles.pressable, style]}
     >
       {({ pressed }) => (
-        <Brut
-          tone={selected ? "signal" : "paper"}
+        <Surface
+          tone={selected ? 'primary' : 'neutral'}
           level={selected ? 3 : 2}
-          pressed={pressed}
           style={[styles.surface, ambiguous ? styles.ambiguous : null]}
         >
           {imageUri === undefined ? (
@@ -100,7 +99,7 @@ export function CandidateTile({
             )}
           </View>
           <ScoreBadge similarity={similarity} band={band} style={styles.badge} />
-        </Brut>
+        </Surface>
       )}
     </Pressable>
   );
@@ -120,11 +119,11 @@ const styles = StyleSheet.create({
     width: touch.candidate - structure.borderWidth * 2,
     height: '100%',
     borderRightWidth: structure.borderWidth,
-    borderRightColor: palette.ink,
-    backgroundColor: palette.bone,
+    borderRightColor: palette.primary,
+    backgroundColor: palette.onPrimary,
   },
   mugshotEmpty: {
-    backgroundColor: palette.slab,
+    backgroundColor: palette.canvas,
   },
   identity: {
     flex: 1,
@@ -137,7 +136,7 @@ const styles = StyleSheet.create({
     fontWeight: scale.h2.weight,
     letterSpacing: scale.h2.tracking,
     textTransform: scale.h2.transform,
-    color: palette.ink,
+    color: palette.primary,
   },
   meta: {
     marginTop: space[1],
@@ -145,7 +144,7 @@ const styles = StyleSheet.create({
     fontSize: scale.mono.size,
     lineHeight: scale.mono.lh,
     fontWeight: scale.mono.weight,
-    color: palette.ink,
+    color: palette.primary,
   },
   badge: {
     minWidth: space[24],

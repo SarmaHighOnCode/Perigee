@@ -71,6 +71,6 @@ const styles = StyleSheet.create({
     lineHeight: scale.h2.lh,
     fontWeight: scale.h2.weight,
     letterSpacing: scale.h2.tracking,
-    color: palette.ink,
+    color: palette.primary,
   },
 });

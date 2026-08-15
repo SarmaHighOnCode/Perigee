@@ -44,6 +44,6 @@ export default function RosterScreen() {
 }
 
 const styles = StyleSheet.create({
-  copy: { color: palette.ink, fontFamily: 'PublicSans', fontSize: 14, lineHeight: 21 },
-  id: { color: palette.ink, fontFamily: 'MartianMono', fontSize: 12 },
+  copy: { color: palette.primary, fontFamily: 'PublicSans', fontSize: 14, lineHeight: 21 },
+  id: { color: palette.primary, fontFamily: 'MartianMono', fontSize: 12 },
 });

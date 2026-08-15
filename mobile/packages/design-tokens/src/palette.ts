@@ -6,23 +6,22 @@
  * decoratively.
  */
 export const palette = {
-  ink: '#0A0A0A', // every border, every shadow, all DAY text
-  paper: '#FFFEF0', // DAY surface — warm off-white
-  void: '#0B0B10', // NIGHT surface — blue-black, preserves night vision
-  slab: '#16161F', // NIGHT raised surface
-  bone: '#E8E6D9', // NIGHT primary text
+  primary: '#171717',
+  onPrimary: '#ffffff',
+  canvas: '#ffffff',
+  canvasSoft: '#fafafa',
+  hairline: '#ebebeb',
+  mute: '#888888',
 
-  signal: '#FFE600', // primary action, attention
-  alert: '#FF3EA5', // STRONG candidate, destructive, ambiguity
-  data: '#00C2CB', // REVIEW candidate, scores, IDs, telemetry
-  clear: '#00C853', // NO MATCH, cleared, proceed
-  warn: '#FF6B00', // WEAK candidate, degraded quality
+  signal: '#0070f3', // Maps to Vercel success/link
+  alert: '#ff0000', // Maps to Vercel error
+  data: '#888888', // Maps to Vercel mute
+  clear: '#0070f3',
+  warn: '#f5a623',
 } as const;
 
-/** A palette key usable as a surface fill or an accent. */
 export type PaletteTone = keyof typeof palette;
-export type Tone = PaletteTone;
-/** `neutral` is a mobile UI semantic alias for the paper surface. */
+export type Tone = 'primary' | 'secondary' | 'signal' | 'alert' | 'data' | 'clear' | 'warn';
 export type SemanticTone = PaletteTone | 'neutral';
 
 export type PaletteColour = (typeof palette)[PaletteTone];

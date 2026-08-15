@@ -32,6 +32,6 @@ export default function PersonReferenceScreen() {
 }
 
 const styles = StyleSheet.create({
-  id: { color: palette.ink, fontFamily: 'MartianMonoBold', fontSize: 13 },
-  copy: { color: palette.ink, fontFamily: 'PublicSans', fontSize: 14, lineHeight: 21 },
+  id: { color: palette.primary, fontFamily: 'MartianMonoBold', fontSize: 13 },
+  copy: { color: palette.primary, fontFamily: 'PublicSans', fontSize: 14, lineHeight: 21 },
 });

@@ -12,7 +12,7 @@ import {
   type Tone,
 } from '@perigee/design-tokens';
 
-import { Brut } from './Brut';
+import { Surface } from './Surface';
 
 export interface BannerProps extends PropsWithChildren {
   title: string;
@@ -42,7 +42,7 @@ export function Banner({
   const showDismiss = dismissible && onDismiss !== undefined;
 
   return (
-    <Brut tone={tone} level={level} style={[styles.surface, style]}>
+    <Surface tone={tone} level={level} style={[styles.surface, style]}>
       <View style={styles.row}>
         <View style={styles.copy}>
           <Text accessibilityRole="header" style={styles.title}>
@@ -62,7 +62,7 @@ export function Banner({
           </Pressable>
         ) : null}
       </View>
-    </Brut>
+    </Surface>
   );
 }
 
@@ -84,7 +84,7 @@ const styles = StyleSheet.create({
     fontWeight: scale.h2.weight,
     letterSpacing: scale.h2.tracking,
     textTransform: scale.h2.transform,
-    color: palette.ink,
+    color: palette.primary,
   },
   message: {
     marginTop: space[2],
@@ -92,7 +92,7 @@ const styles = StyleSheet.create({
     fontSize: scale.body.size,
     lineHeight: scale.body.lh,
     fontWeight: scale.body.weight,
-    color: palette.ink,
+    color: palette.primary,
   },
   dismiss: {
     width: touch.icon,
@@ -106,6 +106,6 @@ const styles = StyleSheet.create({
     fontSize: scale.h2.size,
     lineHeight: scale.h2.lh,
     fontWeight: scale.h2.weight,
-    color: palette.ink,
+    color: palette.primary,
   },
 });

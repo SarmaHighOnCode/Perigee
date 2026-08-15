@@ -6,8 +6,10 @@ import {
 } from '@perigee/design-tokens';
 
 export function getTonePresentation(tone: Tone | 'neutral') {
+  if (tone === 'neutral') return { backgroundColor: palette.canvasSoft, label: 'NOT TESTED' };
+  if (tone === 'secondary') return { backgroundColor: palette.canvas, label: 'SECONDARY' };
   return {
-    backgroundColor: tone === 'neutral' ? palette.paper : palette[tone],
+    backgroundColor: palette[tone],
     label: tone in statusLabels ? statusLabels[tone as keyof typeof statusLabels] : tone.toUpperCase(),
   };
 }

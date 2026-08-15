@@ -24,6 +24,6 @@ export default function UploadsScreen() {
 }
 
 const styles = StyleSheet.create({
-  copy: { color: palette.ink, fontFamily: 'PublicSans', fontSize: 14, lineHeight: 21 },
-  row: { color: palette.ink, fontFamily: 'MartianMonoBold', fontSize: 12, paddingVertical: 5 },
+  copy: { color: palette.primary, fontFamily: 'PublicSans', fontSize: 14, lineHeight: 21 },
+  row: { color: palette.primary, fontFamily: 'MartianMonoBold', fontSize: 12, paddingVertical: 5 },
 });

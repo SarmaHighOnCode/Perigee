@@ -34,6 +34,8 @@ export function AppProviders({ children }: PropsWithChildren) {
     PublicSansBold: PublicSans_700Bold,
     RocketDoodle: require('../../assets/fonts/RocketDoodle.ttf'),
     ComicSansMS: require('../../assets/fonts/comic.ttf'),
+    Thugolatz: require('../../assets/fonts/thugolatz.regular.ttf'),
+    LogotypeBold: require('../../assets/fonts/LOGOTYPE-Bold.otf'),
   });
 
   useEffect(() => {

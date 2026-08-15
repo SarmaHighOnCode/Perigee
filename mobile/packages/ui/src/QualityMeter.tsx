@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { fonts, palette, scale, space } from '@perigee/design-tokens';
 
-import { Brut } from './Brut';
+import { Surface } from './Surface';
 import { QUALITY_SEGMENTS, qualitySegments, qualityTone } from './logic';
 
 const SEGMENTS = Array.from({ length: QUALITY_SEGMENTS }, (_, index) => index);
@@ -40,8 +40,8 @@ export function QualityMeter({ quality, label, style }: QualityMeterProps) {
       >
         {SEGMENTS.map((index) => (
           <View key={index} style={styles.slot}>
-            <Brut
-              tone={index < filled ? tone : 'paper'}
+            <Surface
+              tone={index < filled ? tone : 'neutral'}
               shadow={false}
               style={styles.block}
             />
@@ -61,7 +61,7 @@ const styles = StyleSheet.create({
     fontWeight: scale.label.weight,
     letterSpacing: scale.label.tracking,
     textTransform: scale.label.transform,
-    color: palette.ink,
+    color: palette.primary,
   },
   track: {
     flexDirection: 'row',

@@ -38,3 +38,8 @@ mobile/**/node_modules/
 mobile/**/.expo/
 mobile/**/android/
 mobile/**/ios/
+
+# Developer-only InsightFace model preparation cache
+testing/face-models/cache/
+*.onnx
+buffalo_l*.zip

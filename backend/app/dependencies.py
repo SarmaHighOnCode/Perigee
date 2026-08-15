@@ -130,7 +130,7 @@ def _enforce(limiter_name: str):
         limiters: Limiters = Depends(get_limiters),
     ) -> None:
         limiter = getattr(limiters, limiter_name)
-        allowed, remaining, retry_after = limiter.check(str(device.device_id))
+        allowed, remaining, retry_after = await limiter.check(str(device.device_id))
         if not allowed:
             raise RateLimited(
                 "Rate limit exceeded",
@@ -150,7 +150,7 @@ rate_limit_read = _enforce("read")
 async def rate_limit_public(request: Request, limiters: Limiters = Depends(get_limiters)) -> None:
     """Public endpoints have no device key, so they are limited per client IP."""
     client_ip = request.client.host if request.client else "unknown"
-    allowed, _remaining, retry_after = limiters.public.check(client_ip)
+    allowed, _remaining, retry_after = await limiters.public.check(client_ip)
     if not allowed:
         raise RateLimited(
             "Rate limit exceeded",

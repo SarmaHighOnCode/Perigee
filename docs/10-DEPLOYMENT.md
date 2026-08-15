@@ -112,6 +112,25 @@ binding constraint — well past anything a hackathon needs.
 
 ## 4. API — Render, native Python
 
+> **Currently deployed to Vercel instead**, at `https://perigee-core.vercel.app`
+> (`backend/vercel.json`, entrypoint `backend/api/index.py`). Render remains the
+> designed target and `render.yaml` is still correct and current.
+>
+> The one thing that had to change to make a serverless host safe is the rate
+> limiter. In-process buckets are correct only where there is exactly one
+> process; Vercel runs as many instances as it likes, so each would keep its own
+> counters and every configured limit would be multiplied by the instance count.
+> `RATE_LIMIT_BACKEND=postgres` moves the buckets into the database
+> (migration `0009_rate_bucket`), and `app/main.py` **raises at startup** if that
+> variable is set without a database, so the unsafe combination cannot happen
+> quietly. Render should keep `RATE_LIMIT_BACKEND=memory` — one worker, no round
+> trip.
+>
+> Known trade-offs on Vercel versus Render: a cold start builds a fresh asyncpg
+> pool per instance, and `pyproject.toml` is excluded via `.vercelignore` so the
+> builder installs from `requirements.txt` (that `[project]` table declares no
+> dependencies, and a second list would drift from the first).
+
 **No Docker**, per requirement. Render's native Python runtime.
 
 `render.yaml` (Blueprint — commit it; infrastructure in the repo beats clicking through a dashboard):

@@ -1,0 +1,525 @@
+{
+  "entries": [
+    {
+      "height": 1254,
+      "identity": null,
+      "path": "images/controls/blurred-face.png",
+      "pose": "blurred-face",
+      "sha256": "c72fae3954065282039da6ec8cfe0ae1462fe84828e6f61a452d8808027714f0",
+      "synthetic": true,
+      "use": "control",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": null,
+      "path": "images/controls/dark-face.png",
+      "pose": "dark-face",
+      "sha256": "fd7a605f2715c6f9de58cb6708d2606858ae7440903af5440ea79615682c81ed",
+      "synthetic": true,
+      "use": "control",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": null,
+      "path": "images/controls/no-face.png",
+      "pose": "no-face",
+      "sha256": "cba02b6010a6a9b52b31b5ef8f1a40e5a0c8973f8607cacee602597246e2f9ad",
+      "synthetic": true,
+      "use": "control",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": null,
+      "path": "images/controls/two-faces.png",
+      "pose": "two-faces",
+      "sha256": "29b1247c94579c469bc52a907202c4993cc655625024d5ce46800c2370fcab3e",
+      "synthetic": true,
+      "use": "control",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-01",
+      "path": "images/synth-01/enrollment-frontal-1.png",
+      "pose": "frontal-1",
+      "sha256": "e0468b3a3dadc0c4b974100f0744c61410d30107194354b8a4216de88962cbeb",
+      "synthetic": true,
+      "use": "enrollment",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-01",
+      "path": "images/synth-01/enrollment-frontal-2.png",
+      "pose": "frontal-2",
+      "sha256": "fe165e5d0d32022c8c040cc6be59ad51ddab1d5f864f37245a1607da7b7f637f",
+      "synthetic": true,
+      "use": "enrollment",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-01",
+      "path": "images/synth-01/enrollment-left-1.png",
+      "pose": "left-1",
+      "sha256": "3f3931a6306fefe641f49429a7151bda5f612d56c0dc85a0c6dd696541a03d51",
+      "synthetic": true,
+      "use": "enrollment",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-01",
+      "path": "images/synth-01/enrollment-left-2.png",
+      "pose": "left-2",
+      "sha256": "72d87925e7e3bef29aa99466aff0dc23822407e74d2028e277989f65c7ada491",
+      "synthetic": true,
+      "use": "enrollment",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-01",
+      "path": "images/synth-01/enrollment-right-1.png",
+      "pose": "right-1",
+      "sha256": "d26d836c718a31b77cee860a652b08d5a82e8b20c7da3b0a815d27403d8fca96",
+      "synthetic": true,
+      "use": "enrollment",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-01",
+      "path": "images/synth-01/enrollment-right-2.png",
+      "pose": "right-2",
+      "sha256": "fcc38897c0159f1f167316ff754167f5bf9945a319eb7becc1423f9c23d2f861",
+      "synthetic": true,
+      "use": "enrollment",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-01",
+      "path": "images/synth-01/probe-probe-1.png",
+      "pose": "probe-1",
+      "sha256": "0171bf60679671a61adc28864fc513ff3e0faf95d311bb100f9d54020bae5a39",
+      "synthetic": true,
+      "use": "probe",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-01",
+      "path": "images/synth-01/probe-probe-2.png",
+      "pose": "probe-2",
+      "sha256": "3f7a3fb7155c6e86e3ed060a30486baabe31ebe79304ec6db6a44a592fba2664",
+      "synthetic": true,
+      "use": "probe",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-01",
+      "path": "images/synth-01/probe-probe-3.png",
+      "pose": "probe-3",
+      "sha256": "d7da4bc6280aa173bf7b735fcb95ee71a3fa82ba00028fc784b716fdf6a22e17",
+      "synthetic": true,
+      "use": "probe",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-02",
+      "path": "images/synth-02/enrollment-frontal-1.png",
+      "pose": "frontal-1",
+      "sha256": "27cfa53836b43732e45336485309cc1090865ba5f20e8127b70453376501393a",
+      "synthetic": true,
+      "use": "enrollment",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-02",
+      "path": "images/synth-02/enrollment-frontal-2.png",
+      "pose": "frontal-2",
+      "sha256": "90f9ce39f95873a5f28287c1e0e29ace40bd146bad287dde2635c8227529b6e5",
+      "synthetic": true,
+      "use": "enrollment",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-02",
+      "path": "images/synth-02/enrollment-left-1.png",
+      "pose": "left-1",
+      "sha256": "bec164988c81d87486e29791272697a9f1da15109deb0a832b3ea5da25522c9e",
+      "synthetic": true,
+      "use": "enrollment",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-02",
+      "path": "images/synth-02/enrollment-left-2.png",
+      "pose": "left-2",
+      "sha256": "e6dcb8e1d91afe923cafc371861013de1db4d2610adbc44f913ab2d445697d14",
+      "synthetic": true,
+      "use": "enrollment",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-02",
+      "path": "images/synth-02/enrollment-right-1.png",
+      "pose": "right-1",
+      "sha256": "b1629bf2ebc659914441bf3f54fd1f7a762a3b106ab030d9bed9cc015735bad3",
+      "synthetic": true,
+      "use": "enrollment",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-02",
+      "path": "images/synth-02/enrollment-right-2.png",
+      "pose": "right-2",
+      "sha256": "ccd5e3a4eecaa826b4afb62f93b63e0c73324fd22192f6545df644943fde3d05",
+      "synthetic": true,
+      "use": "enrollment",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-02",
+      "path": "images/synth-02/probe-probe-1.png",
+      "pose": "probe-1",
+      "sha256": "ecf19f3ed164a86c95ba7a01d51dafccb9251424fe8df176702c8e457e1ed03f",
+      "synthetic": true,
+      "use": "probe",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-02",
+      "path": "images/synth-02/probe-probe-2.png",
+      "pose": "probe-2",
+      "sha256": "900a46a798da542251525775f193cbec5603e8d9fdfce5d867695f9671c5bb7b",
+      "synthetic": true,
+      "use": "probe",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-02",
+      "path": "images/synth-02/probe-probe-3.png",
+      "pose": "probe-3",
+      "sha256": "5ee0672c5b4c6b4e5c728ad777154e57256c2ffb5a7597870704540ebd6730d5",
+      "synthetic": true,
+      "use": "probe",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-03",
+      "path": "images/synth-03/enrollment-frontal-1.png",
+      "pose": "frontal-1",
+      "sha256": "3407d93498890c59cc02fdfef761f61a741875e6b168f6f85f4bd6d9949a759a",
+      "synthetic": true,
+      "use": "enrollment",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-03",
+      "path": "images/synth-03/enrollment-frontal-2.png",
+      "pose": "frontal-2",
+      "sha256": "00cee844e4fb85ec04dd8da961096ac0cd302b4b5f0a6aeea2cf26f65318b22e",
+      "synthetic": true,
+      "use": "enrollment",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-03",
+      "path": "images/synth-03/enrollment-left-1.png",
+      "pose": "left-1",
+      "sha256": "ab536f3211ba9766938a137a4bd2018f790d8e20f3630cdec66375e390dd3761",
+      "synthetic": true,
+      "use": "enrollment",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-03",
+      "path": "images/synth-03/enrollment-left-2.png",
+      "pose": "left-2",
+      "sha256": "2484af2d74ce02f25605a45e9c02f79049f8cffa316753c716db131920d66796",
+      "synthetic": true,
+      "use": "enrollment",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-03",
+      "path": "images/synth-03/enrollment-right-1.png",
+      "pose": "right-1",
+      "sha256": "09fc1316e90ba512d2a1f1896b37418611c1b04c0ea859c0a6626c26e1778653",
+      "synthetic": true,
+      "use": "enrollment",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-03",
+      "path": "images/synth-03/enrollment-right-2.png",
+      "pose": "right-2",
+      "sha256": "db75ccd13029cbbb7ed0317a6f0f138a2173b45a251125214191d0aec12e2d79",
+      "synthetic": true,
+      "use": "enrollment",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-03",
+      "path": "images/synth-03/probe-probe-1.png",
+      "pose": "probe-1",
+      "sha256": "6c7d8a061af315e3685fc2888324fc4ebb99d56a675ecda942b41ada264433da",
+      "synthetic": true,
+      "use": "probe",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-03",
+      "path": "images/synth-03/probe-probe-2.png",
+      "pose": "probe-2",
+      "sha256": "0a6278bb58631dfe72159e3ae49acd58b41704ef91def5c0fac047a06b8d6537",
+      "synthetic": true,
+      "use": "probe",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-03",
+      "path": "images/synth-03/probe-probe-3.png",
+      "pose": "probe-3",
+      "sha256": "44e88d67322c01130ca58067fd156b3c00d3e67eb1fc6fa2f2f5e71488a66d93",
+      "synthetic": true,
+      "use": "probe",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-04",
+      "path": "images/synth-04/enrollment-frontal-1.png",
+      "pose": "frontal-1",
+      "sha256": "a456973ceb3793dd474b55076c623fcefe6c772c19649d10b78bbfff44b591ed",
+      "synthetic": true,
+      "use": "enrollment",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-04",
+      "path": "images/synth-04/enrollment-frontal-2.png",
+      "pose": "frontal-2",
+      "sha256": "50bc495dbf73872390ba79419fed245294cc9a5f862d958a5cf5b8deb7fb262c",
+      "synthetic": true,
+      "use": "enrollment",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-04",
+      "path": "images/synth-04/enrollment-left-1.png",
+      "pose": "left-1",
+      "sha256": "0eabdec8a056498a53c362e26e4f2a807f558cb563c8c471570c0ee62d7faa3b",
+      "synthetic": true,
+      "use": "enrollment",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-04",
+      "path": "images/synth-04/enrollment-left-2.png",
+      "pose": "left-2",
+      "sha256": "c5e999180034530460eaaa47597ec8f96a3e12443a834f1f4062c2187bf80b4f",
+      "synthetic": true,
+      "use": "enrollment",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-04",
+      "path": "images/synth-04/enrollment-right-1.png",
+      "pose": "right-1",
+      "sha256": "d6cdbecb8fa0151ba34b41f283698b525b74d0efb5fcb2617163a562a739e1c9",
+      "synthetic": true,
+      "use": "enrollment",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-04",
+      "path": "images/synth-04/enrollment-right-2.png",
+      "pose": "right-2",
+      "sha256": "97d5d25e237b5498f83674c10a87312938e8f3ec1af32e016a24fd1089dc6c34",
+      "synthetic": true,
+      "use": "enrollment",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-04",
+      "path": "images/synth-04/probe-probe-1.png",
+      "pose": "probe-1",
+      "sha256": "5c08f4bcc0d5800b6b14c9dc92349ff044f0df35a42aa1b1842303d74e874205",
+      "synthetic": true,
+      "use": "probe",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-04",
+      "path": "images/synth-04/probe-probe-2.png",
+      "pose": "probe-2",
+      "sha256": "6c7d50cbb705aac37652f06fbad30dae3a717c7065810b7a3974d3b72a576887",
+      "synthetic": true,
+      "use": "probe",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-04",
+      "path": "images/synth-04/probe-probe-3.png",
+      "pose": "probe-3",
+      "sha256": "a5e7b3d67860c2e78df9890d7b12c7d9788ceb94bbf30a4f6960a8f9e728752d",
+      "synthetic": true,
+      "use": "probe",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-05",
+      "path": "images/synth-05/enrollment-frontal-1.png",
+      "pose": "frontal-1",
+      "sha256": "9446d23799a1719947326d25590fd56d544845c992587da69191b07d76a03e98",
+      "synthetic": true,
+      "use": "enrollment",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-05",
+      "path": "images/synth-05/enrollment-frontal-2.png",
+      "pose": "frontal-2",
+      "sha256": "331b921a2f030977dd1e2c6ec09dc9b72156864fb69c848cc632487dda44e41a",
+      "synthetic": true,
+      "use": "enrollment",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-05",
+      "path": "images/synth-05/enrollment-left-1.png",
+      "pose": "left-1",
+      "sha256": "9879d63ddf5a4a830ac871bd2bc28be6f6866c326370fceeef5b23fa04eed1be",
+      "synthetic": true,
+      "use": "enrollment",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-05",
+      "path": "images/synth-05/enrollment-left-2.png",
+      "pose": "left-2",
+      "sha256": "78c45d873623489b46b64c6a66a1274aba7af93f18234f0a4f057eb8d034838d",
+      "synthetic": true,
+      "use": "enrollment",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-05",
+      "path": "images/synth-05/enrollment-right-1.png",
+      "pose": "right-1",
+      "sha256": "fcfb79baa445ae566b4034a156728e7e097da39f39c776315dbec08e488c3970",
+      "synthetic": true,
+      "use": "enrollment",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-05",
+      "path": "images/synth-05/enrollment-right-2.png",
+      "pose": "right-2",
+      "sha256": "2522885302c79c3b549ce2506cc1370b41fa7150320e9fe2823a88582e14be73",
+      "synthetic": true,
+      "use": "enrollment",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-05",
+      "path": "images/synth-05/probe-probe-1.png",
+      "pose": "probe-1",
+      "sha256": "17cd18d5acc66ce44fea4a104c165e0458a2ccec9836315250af2db77034e370",
+      "synthetic": true,
+      "use": "probe",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-05",
+      "path": "images/synth-05/probe-probe-2.png",
+      "pose": "probe-2",
+      "sha256": "b48ca53e28aa35b57d903b1a58abe89787054ea0878574de459c7f125b394d0d",
+      "synthetic": true,
+      "use": "probe",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-05",
+      "path": "images/synth-05/probe-probe-3.png",
+      "pose": "probe-3",
+      "sha256": "79809a2011894a9de8887113be2ecf319ffb3fbee1f27a747b4639d012182642",
+      "synthetic": true,
+      "use": "probe",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-06",
+      "path": "images/synth-06/probe-probe-1.png",
+      "pose": "probe-1",
+      "sha256": "21f96deaa380cadcc5060b4d7d139980d5f12b434fe4c4de837b0a7ea3678b0d",
+      "synthetic": true,
+      "use": "probe",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-06",
+      "path": "images/synth-06/probe-probe-2.png",
+      "pose": "probe-2",
+      "sha256": "481e1484df7db6d61985047fb4e019a4139bd589b5ed51d5de95172e2114a3b1",
+      "synthetic": true,
+      "use": "probe",
+      "width": 1254
+    },
+    {
+      "height": 1254,
+      "identity": "synth-06",
+      "path": "images/synth-06/probe-probe-3.png",
+      "pose": "probe-3",
+      "sha256": "387a132ddc5ce50934d11b196c6f31d52481b32841a7b1c8843958e051c42772",
+      "synthetic": true,
+      "use": "probe",
+      "width": 1254
+    }
+  ],
+  "schema_version": 1
+}

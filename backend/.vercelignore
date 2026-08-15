@@ -1,0 +1,17 @@
+# Keep the uploaded bundle to the service itself. The virtualenv alone is
+# hundreds of megabytes and Vercel installs from requirements.txt anyway.
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+tests/
+fixtures/
+.env
+
+# Vercel installs from pyproject.toml in preference to requirements.txt when it
+# is present, and this [project] table declares no dependencies — the runtime
+# set lives in requirements.txt, which is also what render.yaml and CI install.
+# Excluding it keeps ONE dependency list rather than two that must be kept in
+# step. Nothing here is needed at runtime; it is ruff/pytest/pyright config.
+pyproject.toml

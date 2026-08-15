@@ -1,0 +1,96 @@
+diff --git a/android/src/main/java/com/ReactNativeBlobUtil/ReactNativeBlobUtilReq.java b/android/src/main/java/com/ReactNativeBlobUtil/ReactNativeBlobUtilReq.java
+index 51833d1e4d5474ff6772c4a0750ae888e675cb94..513d2e5eff4f067bc5a185db9b13e4da75349e33 100644
+--- a/android/src/main/java/com/ReactNativeBlobUtil/ReactNativeBlobUtilReq.java
++++ b/android/src/main/java/com/ReactNativeBlobUtil/ReactNativeBlobUtilReq.java
+@@ -177,6 +177,38 @@ public class ReactNativeBlobUtilReq extends BroadcastReceiver implements Runnabl
+             Context appCtx = ReactNativeBlobUtilImpl.RCTContext.getApplicationContext();
+             DownloadManager dm = (DownloadManager) appCtx.getSystemService(Context.DOWNLOAD_SERVICE);
+             dm.remove(downloadManagerIdForTaskId);
++        } else {
++            removeDownloadManagerTasksByTitle(taskId);
++        }
++    }
++
++    /**
++     * DownloadManager's numeric IDs are held in a process-local map. A caller can
++     * persist a unique request title before enqueue and use it to cancel an
++     * abandoned task after the React Native process has restarted.
++     */
++    private static void removeDownloadManagerTasksByTitle(String title) {
++        Context appCtx = ReactNativeBlobUtilImpl.RCTContext.getApplicationContext();
++        DownloadManager dm = (DownloadManager) appCtx.getSystemService(Context.DOWNLOAD_SERVICE);
++        DownloadManager.Query query = new DownloadManager.Query();
++        Cursor cursor = dm.query(query);
++        if (cursor == null) return;
++
++        ArrayList<Long> matchingIds = new ArrayList<>();
++        try {
++            int idColumn = cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_ID);
++            int titleColumn = cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TITLE);
++            while (cursor.moveToNext()) {
++                if (title.equals(cursor.getString(titleColumn))) {
++                    matchingIds.add(cursor.getLong(idColumn));
++                }
++            }
++        } finally {
++            cursor.close();
++        }
++
++        for (Long id : matchingIds) {
++            dm.remove(id.longValue());
+         }
+     }
+ 
+diff --git a/index.d.ts b/index.d.ts
+index 7c66526b515261d64ec4e25ad33fa2db832fd086..b79db69c615fc5acc80578d402975ebcea0a0261 100644
+--- a/index.d.ts
++++ b/index.d.ts
+@@ -10,6 +10,7 @@ import { filedescriptor } from "./types";
+ import CanceledFetchError from "./class/ReactNativeBlobUtilCanceledFetchError";
+ 
+ interface ReactNativeBlobUtilStatic {
++    cancelDownloadManagerTask(identity: string): Promise<void>;
+     fetch(method: Methods, url: string, headers?: { [key: string]: string }, body?: any | null): StatefulPromise<FetchBlobResponse>;
+ 
+     base64: { encode(input: string): string; decode(input: string): string };
+diff --git a/index.js b/index.js
+index ecaddf9939924dbf0a2ead0afd9ac0fb3e363292..b2778b90c80a1b6b1b6bfdbeccf35c06b6d33adb 100644
+--- a/index.js
++++ b/index.js
+@@ -35,6 +35,16 @@ const {
+ const Blob = polyfill.Blob;
+ const wrap = URIUtil.wrap;
+ 
++const cancelDownloadManagerTask = (identity) => new Promise((resolve, reject) => {
++    ReactNativeBlobUtil.cancelRequest(identity, (error) => {
++        if (error) {
++            reject(new Error(String(error)));
++            return;
++        }
++        resolve();
++    });
++});
++
+ // Show warning if native module not detected
+ if (!ReactNativeBlobUtil || !ReactNativeBlobUtil.fetchBlobForm || !ReactNativeBlobUtil.fetchBlob) {
+     console.warn(
+@@ -60,5 +70,6 @@ export default {
+     polyfill,
+     JSONStream,
+     MediaCollection,
+-    CanceledFetchError
++    CanceledFetchError,
++    cancelDownloadManagerTask
+ };
+diff --git a/index.js.flow b/index.js.flow
+index cfd01ff4a5092e6b419d0fe29f7051938467b54b..066df56a835eccd489c63121eb61cb4610f86c6e 100644
+--- a/index.js.flow
++++ b/index.js.flow
+@@ -99,6 +99,7 @@ declare class ReactNativeBlobUtil {
+     fs: FsApi;
+     ios: IosApi;
+     config(options: ReactNativeBlobUtilConfig): { fetch: (method: Methods, url: string, headers?: { [key: string]: string }, body?: string | FormField[]) => StatefulPromise<FetchBlobResponse> };
++    cancelDownloadManagerTask(identity: string): Promise<void>;
+     fetch(method: Methods, url: string, headers?: { [key: string]: string }, body?: string | FormField[]): StatefulPromise<FetchBlobResponse>;
+     session(name: string): ReactNativeBlobUtilSession;
+     wrap(path: string): string;

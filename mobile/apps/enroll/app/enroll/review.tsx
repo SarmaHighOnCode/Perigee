@@ -87,9 +87,9 @@ export default function ReviewScreen() {
 }
 
 const styles = StyleSheet.create({
-  copy: { color: palette.ink, fontFamily: 'PublicSans', fontSize: 14, lineHeight: 21 },
-  row: { borderBottomColor: palette.ink, borderBottomWidth: 2, color: palette.ink, fontFamily: 'MartianMonoBold', fontSize: 12, paddingVertical: space[2] },
-  error: { backgroundColor: palette.alert, borderColor: palette.ink, borderWidth: 3, color: palette.ink, fontFamily: 'PublicSansBold', padding: space[3] },
-  message: { borderColor: palette.ink, borderWidth: 3, color: palette.ink, fontFamily: 'PublicSansBold', padding: space[3] },
+  copy: { color: palette.primary, fontFamily: 'PublicSans', fontSize: 14, lineHeight: 21 },
+  row: { borderBottomColor: palette.primary, borderBottomWidth: 2, color: palette.primary, fontFamily: 'MartianMonoBold', fontSize: 12, paddingVertical: space[2] },
+  error: { backgroundColor: palette.alert, borderColor: palette.primary, borderWidth: 3, color: palette.primary, fontFamily: 'PublicSansBold', padding: space[3] },
+  message: { borderColor: palette.primary, borderWidth: 3, color: palette.primary, fontFamily: 'PublicSansBold', padding: space[3] },
   clear: { backgroundColor: palette.clear }, warn: { backgroundColor: palette.warn }, alert: { backgroundColor: palette.alert },
 });

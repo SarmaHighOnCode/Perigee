@@ -59,8 +59,8 @@ export default function CasesScreen() {
 }
 
 const styles = StyleSheet.create({
-  copy: { color: palette.ink, fontFamily: 'PublicSans', fontSize: 14, lineHeight: 21 },
-  label: { color: palette.ink, fontFamily: 'MartianMonoBold', fontSize: 11, letterSpacing: 1 },
+  copy: { color: palette.primary, fontFamily: 'PublicSans', fontSize: 14, lineHeight: 21 },
+  label: { color: palette.primary, fontFamily: 'MartianMonoBold', fontSize: 11, letterSpacing: 1 },
   grid: { gap: space[2] },
-  error: { backgroundColor: palette.alert, borderColor: palette.ink, borderWidth: 3, color: palette.ink, fontFamily: 'PublicSansBold', padding: space[3] },
+  error: { backgroundColor: palette.alert, borderColor: palette.primary, borderWidth: 3, color: palette.primary, fontFamily: 'PublicSansBold', padding: space[3] },
 });

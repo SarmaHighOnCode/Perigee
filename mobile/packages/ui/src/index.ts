@@ -1,8 +1,9 @@
-export * from './Brut';
+export { Surface as Brut, Surface, type SurfaceProps as BrutProps, type SurfaceProps } from './Surface';
 export * from './Button';
 export * from './Card';
 export * from './Screen';
 export * from './semantics';
+export * from './Select';
 export * from './StatusChip';
 export * from './SyntheticBanner';
 export * from './Banner';

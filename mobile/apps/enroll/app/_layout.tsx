@@ -8,7 +8,7 @@ export const unstable_settings = { initialRouteName: 'index' };
 export default function RootLayout() {
   return (
     <AppProviders>
-      <Stack screenOptions={{ animation: 'slide_from_right', contentStyle: { backgroundColor: palette.paper }, headerShown: false }} />
+      <Stack screenOptions={{ animation: 'slide_from_right', contentStyle: { backgroundColor: palette.canvasSoft }, headerShown: false }} />
     </AppProviders>
   );
 }

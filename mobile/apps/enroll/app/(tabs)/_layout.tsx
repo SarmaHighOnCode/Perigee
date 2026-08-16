@@ -9,7 +9,7 @@ function TabIcon({ label, focused }: { label: string; focused: boolean }) {
 export default function TabLayout() {
   return (
     <Tabs screenOptions={{
-      headerShown: false, tabBarActiveTintColor: palette.ink, tabBarInactiveTintColor: palette.ink,
+      headerShown: false, tabBarActiveTintColor: palette.primary, tabBarInactiveTintColor: palette.primary,
       tabBarLabelStyle: styles.label, tabBarStyle: styles.bar,
     }}>
       <Tabs.Screen name="roster" options={{ title: 'RECORDS', tabBarIcon: ({ focused }) => <TabIcon focused={focused} label="▣" /> }} />
@@ -21,8 +21,8 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
-  bar: { backgroundColor: palette.paper, borderTopColor: palette.ink, borderTopWidth: structure.borderWidth, height: 72, paddingBottom: 7, paddingTop: 6 },
-  icon: { color: palette.ink, fontFamily: 'Archivo', fontSize: 18 },
+  bar: { backgroundColor: palette.canvasSoft, borderTopColor: palette.primary, borderTopWidth: structure.borderWidth, height: 72, paddingBottom: 7, paddingTop: 6 },
+  icon: { color: palette.primary, fontFamily: 'Archivo', fontSize: 18 },
   iconActive: { transform: [{ translateY: -2 }] },
   label: { fontFamily: 'MartianMonoBold', fontSize: 9, letterSpacing: 0.2 },
 });

@@ -6,23 +6,30 @@
  * decoratively.
  */
 export const palette = {
-  ink: '#0A0A0A', // every border, every shadow, all DAY text
-  paper: '#FFFEF0', // DAY surface — warm off-white
-  void: '#0B0B10', // NIGHT surface — blue-black, preserves night vision
-  slab: '#16161F', // NIGHT raised surface
-  bone: '#E8E6D9', // NIGHT primary text
+  primary: '#171717',
+  onPrimary: '#ffffff',
+  canvas: '#ffffff',
+  canvasSoft: '#fafafa',
+  hairline: '#ebebeb',
+  mute: '#888888',
 
-  signal: '#FFE600', // primary action, attention
-  alert: '#FF3EA5', // STRONG candidate, destructive, ambiguity
-  data: '#00C2CB', // REVIEW candidate, scores, IDs, telemetry
-  clear: '#00C853', // NO MATCH, cleared, proceed
-  warn: '#FF6B00', // WEAK candidate, degraded quality
+  signal: '#0070f3', // Maps to Vercel success/link
+  alert: '#ff0000', // Maps to Vercel error
+  data: '#888888', // Maps to Vercel mute
+  clear: '#0070f3',
+  warn: '#f5a623',
 } as const;
 
-/** A palette key usable as a surface fill or an accent. */
 export type PaletteTone = keyof typeof palette;
-export type Tone = PaletteTone;
-/** `neutral` is a mobile UI semantic alias for the paper surface. */
+
+// The semantic subset: tones that carry meaning, as opposed to the structural
+// keys (canvas, hairline, mute) used for surfaces. `satisfies` ties it to the
+// palette, so removing a colour here fails to compile rather than failing at
+// every `palette[tone]` call site — which is how 'secondary' survived its own
+// deletion until now.
+const TONES = ['primary', 'signal', 'alert', 'data', 'clear', 'warn'] as const satisfies
+  readonly PaletteTone[];
+export type Tone = (typeof TONES)[number];
 export type SemanticTone = PaletteTone | 'neutral';
 
 export type PaletteColour = (typeof palette)[PaletteTone];

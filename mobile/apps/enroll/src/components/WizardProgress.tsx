@@ -22,9 +22,9 @@ export function WizardProgress({ current }: { current: string }) {
 const styles = StyleSheet.create({
   wrap: { flexDirection: 'row', gap: space[1] },
   segment: {
-    alignItems: 'center', backgroundColor: palette.bone, borderColor: palette.ink,
+    alignItems: 'center', backgroundColor: palette.onPrimary, borderColor: palette.primary,
     borderWidth: 2, flex: 1, height: 28, justifyContent: 'center',
   },
   segmentActive: { backgroundColor: palette.signal, borderWidth: structure.borderWidth },
-  text: { color: palette.ink, fontFamily: 'MartianMonoBold', fontSize: 10 },
+  text: { color: palette.primary, fontFamily: 'MartianMonoBold', fontSize: 10 },
 });

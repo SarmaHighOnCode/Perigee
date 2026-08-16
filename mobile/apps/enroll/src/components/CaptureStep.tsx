@@ -83,7 +83,7 @@ export function CaptureStep({ angle, nextHref }: { angle: RequiredCaptureAngle; 
 }
 
 const styles = StyleSheet.create({
-  copy: { color: palette.ink, fontFamily: 'PublicSansBold', fontSize: 15, lineHeight: 21 },
-  note: { color: palette.ink, fontFamily: 'PublicSans', fontSize: 13, lineHeight: 19 },
-  error: { backgroundColor: palette.alert, borderColor: palette.ink, borderWidth: 3, color: palette.ink, fontFamily: 'PublicSansBold', padding: space[3] },
+  copy: { color: palette.primary, fontFamily: 'PublicSansBold', fontSize: 15, lineHeight: 21 },
+  note: { color: palette.primary, fontFamily: 'PublicSans', fontSize: 13, lineHeight: 19 },
+  error: { backgroundColor: palette.alert, borderColor: palette.primary, borderWidth: 3, color: palette.primary, fontFamily: 'PublicSansBold', padding: space[3] },
 });

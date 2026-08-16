@@ -22,5 +22,5 @@ export default function AccessibilityScreen() {
 }
 
 const styles = StyleSheet.create({
-  copy: { color: palette.ink, fontFamily: 'PublicSans', fontSize: 14, lineHeight: 21 },
+  copy: { color: palette.primary, fontFamily: 'PublicSans', fontSize: 14, lineHeight: 21 },
 });

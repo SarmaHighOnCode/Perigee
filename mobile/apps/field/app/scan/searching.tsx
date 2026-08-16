@@ -49,7 +49,7 @@ export default function SearchingScreen() {
         </Card>
       ) : (
         <Card eyebrow={fixtureName ?? ''} title="Candidate ranking in progress" tone="data">
-          <ActivityIndicator color={palette.ink} size="large" />
+          <ActivityIndicator color={palette.primary} size="large" />
           <Text style={styles.copy}>The server returns ranked candidates only. It never returns a match assertion.</Text>
         </Card>
       )}
@@ -58,5 +58,5 @@ export default function SearchingScreen() {
 }
 
 const styles = StyleSheet.create({
-  copy: { color: palette.ink, fontFamily: 'PublicSans', fontSize: 14, lineHeight: 21 },
+  copy: { color: palette.primary, fontFamily: 'PublicSans', fontSize: 14, lineHeight: 21 },
 });

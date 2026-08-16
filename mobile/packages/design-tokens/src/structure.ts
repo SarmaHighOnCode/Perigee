@@ -5,29 +5,34 @@
  * Shadow direction is always bottom-right — one light source, top-left.
  */
 export const structure = {
-  borderWidth: 3,
-  shadowOffset: 5,
-  radius: 0,
+  borderWidth: 1,
 } as const;
 
-export const radii = { none: 0, input: 4, pill: 999 } as const;
+export const radii = { 
+  none: 0, 
+  xs: 4,
+  sm: 6, 
+  md: 8, 
+  lg: 12, 
+  xl: 16,
+  pillSm: 64,
+  pill: 9999 
+} as const;
 
 /**
- * Depth comes from shadow *offset*, never blur — docs/07 §4. Android's
- * `elevation` prop is a blurred shadow and is exactly what this system exists
- * to avoid, so these are offsets for a solid sibling, not native elevations.
+ * Standard Vercel subtle shadows.
  */
 export const elevation = {
   /** Flush surfaces, disabled. */
-  0: { offset: 0 },
+  0: { elevation: 0 },
   /** Inputs, chips, list rows. */
-  1: { offset: 3 },
+  1: { elevation: 1 },
   /** Cards, buttons — the default. */
-  2: { offset: 5 },
+  2: { elevation: 2 },
   /** Modals, the ambiguity warning. */
-  3: { offset: 8 },
-  /** The capture button. One per screen, maximum. */
-  4: { offset: 12 },
+  3: { elevation: 4 },
+  /** Floating / heavy. */
+  4: { elevation: 6 },
 } as const;
 
 export type ElevationLevel = keyof typeof elevation;

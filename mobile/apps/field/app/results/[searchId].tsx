@@ -153,21 +153,21 @@ export default function ResultsScreen() {
 }
 
 const styles = StyleSheet.create({
-  copy: { color: palette.ink, fontFamily: 'PublicSans', fontSize: 14, lineHeight: 21 },
-  release: { color: palette.ink, fontFamily: 'Archivo', fontSize: 42, fontWeight: '900', letterSpacing: -1 },
+  copy: { color: palette.primary, fontFamily: 'PublicSans', fontSize: 14, lineHeight: 21 },
+  release: { color: palette.primary, fontFamily: 'Archivo', fontSize: 42, fontWeight: '900', letterSpacing: -1 },
   candidate: {
-    borderColor: palette.ink, borderWidth: structure.borderWidth, flexDirection: 'row',
+    borderColor: palette.primary, borderWidth: structure.borderWidth, flexDirection: 'row',
     gap: space[3], minHeight: 112, padding: space[3],
   },
-  selected: { shadowColor: palette.ink, shadowOffset: { width: 8, height: 8 }, shadowOpacity: 1, shadowRadius: 0, transform: [{ translateX: -2 }, { translateY: -2 }] },
-  rankBlock: { alignItems: 'flex-start', borderRightColor: palette.ink, borderRightWidth: 2, minWidth: 74, paddingRight: space[2] },
-  rank: { color: palette.ink, fontFamily: 'Archivo', fontSize: 24, fontWeight: '900' },
-  score: { color: palette.ink, fontFamily: 'MartianMonoBold', fontSize: 15, marginTop: 8 },
+  selected: { shadowColor: palette.primary, shadowOffset: { width: 8, height: 8 }, shadowOpacity: 1, shadowRadius: 0, transform: [{ translateX: -2 }, { translateY: -2 }] },
+  rankBlock: { alignItems: 'flex-start', borderRightColor: palette.primary, borderRightWidth: 2, minWidth: 74, paddingRight: space[2] },
+  rank: { color: palette.primary, fontFamily: 'Archivo', fontSize: 24, fontWeight: '900' },
+  score: { color: palette.primary, fontFamily: 'MartianMonoBold', fontSize: 15, marginTop: 8 },
   candidateCopy: { flex: 1 },
-  band: { color: palette.ink, fontFamily: 'MartianMonoBold', fontSize: 10, letterSpacing: 0.8 },
-  name: { color: palette.ink, fontFamily: 'Archivo', fontSize: 21, fontWeight: '900', marginTop: 3 },
-  meta: { color: palette.ink, fontFamily: 'PublicSansBold', fontSize: 11, marginTop: 4 },
+  band: { color: palette.primary, fontFamily: 'MartianMonoBold', fontSize: 10, letterSpacing: 0.8 },
+  name: { color: palette.primary, fontFamily: 'Archivo', fontSize: 21, fontWeight: '900', marginTop: 3 },
+  meta: { color: palette.primary, fontFamily: 'PublicSansBold', fontSize: 11, marginTop: 4 },
   actions: { gap: space[3], marginTop: space[2] },
-  error: { backgroundColor: palette.alert, borderColor: palette.ink, borderWidth: 3, color: palette.ink, fontFamily: 'PublicSansBold', padding: space[3] },
-  audit: { color: palette.ink, fontFamily: 'MartianMono', fontSize: 10, lineHeight: 15, textAlign: 'center' },
+  error: { backgroundColor: palette.alert, borderColor: palette.primary, borderWidth: 3, color: palette.primary, fontFamily: 'PublicSansBold', padding: space[3] },
+  audit: { color: palette.primary, fontFamily: 'MartianMono', fontSize: 10, lineHeight: 15, textAlign: 'center' },
 });

@@ -213,7 +213,7 @@ export function CameraStage({
   if (!device || !descriptor) {
     return (
       <Brut contentStyle={styles.messageBody} tone="warn">
-        <ActivityIndicator color={palette.ink} />
+        <ActivityIndicator color={palette.primary} />
         <Text style={styles.sectionTitle}>DISCOVERING CAMERAS</Text>
       </Brut>
     );
@@ -398,15 +398,15 @@ function Stepper({
 const styles = StyleSheet.create({
   stage: { gap: space[2] },
   messageBody: { gap: space[3], padding: space[4] },
-  sectionTitle: { color: palette.ink, fontFamily: 'Archivo', fontSize: 20, fontWeight: '900' },
-  body: { color: palette.ink, fontFamily: 'PublicSans', fontSize: 14, lineHeight: 20 },
+  sectionTitle: { color: palette.primary, fontFamily: 'Archivo', fontSize: 20, fontWeight: '900' },
+  body: { color: palette.primary, fontFamily: 'PublicSans', fontSize: 14, lineHeight: 20 },
   action: {
-    alignItems: 'center', backgroundColor: palette.paper, borderColor: palette.ink,
+    alignItems: 'center', backgroundColor: palette.canvasSoft, borderColor: palette.primary,
     borderWidth: structure.borderWidth, justifyContent: 'center', minHeight: 56, padding: 12,
   },
-  actionText: { color: palette.ink, fontFamily: 'Archivo', fontWeight: '900', letterSpacing: 0.8 },
+  actionText: { color: palette.primary, fontFamily: 'Archivo', fontWeight: '900', letterSpacing: 0.8 },
   cameraFrame: {
-    backgroundColor: palette.ink, borderColor: palette.ink, borderWidth: structure.borderWidth,
+    backgroundColor: palette.primary, borderColor: palette.primary, borderWidth: structure.borderWidth,
     height: 430, overflow: 'hidden', position: 'relative',
   },
   cameraFrameCompact: { height: 360 },
@@ -416,38 +416,38 @@ const styles = StyleSheet.create({
   },
   reticleBox: { borderColor: palette.signal, borderWidth: 3, height: 104, width: 84 },
   reticleText: {
-    backgroundColor: palette.ink, color: palette.signal, fontFamily: 'MartianMono',
+    backgroundColor: palette.primary, color: palette.signal, fontFamily: 'MartianMono',
     fontSize: 10, fontWeight: '900', marginTop: 4, paddingHorizontal: 6, paddingVertical: 3,
   },
   cameraStatus: {
-    backgroundColor: palette.signal, borderColor: palette.ink, borderRightWidth: 3,
+    backgroundColor: palette.signal, borderColor: palette.primary, borderRightWidth: 3,
     borderTopWidth: 3, bottom: 0, left: 0, paddingHorizontal: 10, paddingVertical: 6,
     position: 'absolute',
   },
-  cameraStatusText: { color: palette.ink, fontFamily: 'MartianMono', fontSize: 10, fontWeight: '900' },
+  cameraStatusText: { color: palette.primary, fontFamily: 'MartianMono', fontSize: 10, fontWeight: '900' },
   controlGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   control: {
-    backgroundColor: palette.data, borderColor: palette.ink, borderWidth: 3,
+    backgroundColor: palette.data, borderColor: palette.primary, borderWidth: 3,
     flexBasis: '45%', flexGrow: 1, minHeight: 58, padding: 8,
   },
-  controlLabel: { color: palette.ink, fontFamily: 'MartianMono', fontSize: 10, fontWeight: '800', letterSpacing: 1 },
-  controlValue: { color: palette.ink, fontFamily: 'Archivo', fontSize: 14, fontWeight: '900', marginTop: 4 },
+  controlLabel: { color: palette.primary, fontFamily: 'MartianMono', fontSize: 10, fontWeight: '800', letterSpacing: 1 },
+  controlValue: { color: palette.primary, fontFamily: 'Archivo', fontSize: 14, fontWeight: '900', marginTop: 4 },
   stepRow: { flexDirection: 'row', gap: 8 },
-  stepper: { backgroundColor: palette.paper, borderColor: palette.ink, borderWidth: 3, flex: 1, padding: 8 },
+  stepper: { backgroundColor: palette.canvasSoft, borderColor: palette.primary, borderWidth: 3, flex: 1, padding: 8 },
   stepperControls: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 },
   stepButton: {
-    alignItems: 'center', backgroundColor: palette.signal, borderColor: palette.ink,
+    alignItems: 'center', backgroundColor: palette.signal, borderColor: palette.primary,
     borderWidth: 2, height: 38, justifyContent: 'center', width: 38,
   },
-  stepButtonText: { color: palette.ink, fontSize: 24, fontWeight: '900', lineHeight: 26 },
-  stepValue: { color: palette.ink, fontFamily: 'MartianMono', fontSize: 13, fontVariant: ['tabular-nums'], fontWeight: '900' },
+  stepButtonText: { color: palette.primary, fontSize: 24, fontWeight: '900', lineHeight: 26 },
+  stepValue: { color: palette.primary, fontFamily: 'MartianMono', fontSize: 13, fontVariant: ['tabular-nums'], fontWeight: '900' },
   capture: {
-    alignItems: 'center', backgroundColor: palette.signal, borderColor: palette.ink,
+    alignItems: 'center', backgroundColor: palette.signal, borderColor: palette.primary,
     borderWidth: structure.borderWidth, justifyContent: 'center', minHeight: 64,
-    shadowColor: palette.ink, shadowOffset: { width: 5, height: 5 },
+    shadowColor: palette.primary, shadowOffset: { width: 5, height: 5 },
     shadowOpacity: 1, shadowRadius: 0,
   },
-  captureText: { color: palette.ink, fontFamily: 'Archivo', fontSize: 16, fontWeight: '900', letterSpacing: 1 },
+  captureText: { color: palette.primary, fontFamily: 'Archivo', fontSize: 16, fontWeight: '900', letterSpacing: 1 },
   pressed: { transform: [{ translateX: 3 }, { translateY: 3 }] },
   disabled: { opacity: 0.45 },
 });

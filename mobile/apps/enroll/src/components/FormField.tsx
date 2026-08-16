@@ -31,12 +31,12 @@ export function FormField({ label, value, onChangeText, hint, multiline, ...inpu
 
 const styles = StyleSheet.create({
   field: { gap: space[2] },
-  label: { color: palette.ink, fontFamily: 'MartianMonoBold', fontSize: 11, letterSpacing: 1 },
+  label: { color: palette.primary, fontFamily: 'MartianMonoBold', fontSize: 11, letterSpacing: 1 },
   input: {
-    backgroundColor: palette.paper, borderColor: palette.ink, borderRadius: 4,
-    borderWidth: structure.borderWidth, color: palette.ink, fontFamily: 'PublicSans',
+    backgroundColor: palette.canvasSoft, borderColor: palette.primary, borderRadius: 4,
+    borderWidth: structure.borderWidth, color: palette.primary, fontFamily: 'PublicSans',
     fontSize: 16, minHeight: 56, paddingHorizontal: space[3], paddingVertical: space[3],
   },
   multiline: { minHeight: 100, textAlignVertical: 'top' },
-  hint: { color: palette.ink, fontFamily: 'PublicSans', fontSize: 12, lineHeight: 17 },
+  hint: { color: palette.primary, fontFamily: 'PublicSans', fontSize: 12, lineHeight: 17 },
 });

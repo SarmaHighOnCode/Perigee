@@ -66,9 +66,9 @@ export default function CameraDiagnosticsScreen() {
 
 const styles = StyleSheet.create({
   statuses: { flexDirection: 'row', flexWrap: 'wrap', gap: space[2] },
-  previewFrame: { backgroundColor: palette.ink, borderColor: palette.ink, borderWidth: structure.borderWidth, height: 260 },
+  previewFrame: { backgroundColor: palette.primary, borderColor: palette.primary, borderWidth: structure.borderWidth, height: 260 },
   preview: { flex: 1 },
-  data: { color: palette.ink, fontFamily: 'MartianMonoBold', fontSize: 12 },
-  copy: { color: palette.ink, fontFamily: 'PublicSans', fontSize: 14, lineHeight: 21 },
-  error: { backgroundColor: palette.alert, borderColor: palette.ink, borderWidth: 3, color: palette.ink, fontFamily: 'PublicSansBold', padding: space[3] },
+  data: { color: palette.primary, fontFamily: 'MartianMonoBold', fontSize: 12 },
+  copy: { color: palette.primary, fontFamily: 'PublicSans', fontSize: 14, lineHeight: 21 },
+  error: { backgroundColor: palette.alert, borderColor: palette.primary, borderWidth: 3, color: palette.primary, fontFamily: 'PublicSansBold', padding: space[3] },
 });

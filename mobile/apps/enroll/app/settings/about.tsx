@@ -32,7 +32,7 @@ export default function AboutScreen() {
 }
 
 const styles = StyleSheet.create({
-  url: { color: palette.ink, fontFamily: 'MartianMono', fontSize: 12 },
-  copy: { color: palette.ink, fontFamily: 'PublicSans', fontSize: 14, lineHeight: 21 },
-  message: { backgroundColor: palette.clear, borderColor: palette.ink, borderWidth: 3, color: palette.ink, fontFamily: 'PublicSansBold', padding: space[3] },
+  url: { color: palette.primary, fontFamily: 'MartianMono', fontSize: 12 },
+  copy: { color: palette.primary, fontFamily: 'PublicSans', fontSize: 14, lineHeight: 21 },
+  message: { backgroundColor: palette.clear, borderColor: palette.primary, borderWidth: 3, color: palette.primary, fontFamily: 'PublicSansBold', padding: space[3] },
 });

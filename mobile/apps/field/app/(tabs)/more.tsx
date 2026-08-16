@@ -39,14 +39,14 @@ export default function MoreScreen() {
 const styles = StyleSheet.create({
   list: { gap: space[3] },
   row: {
-    alignItems: 'center', backgroundColor: palette.paper, borderColor: palette.ink,
+    alignItems: 'center', backgroundColor: palette.canvasSoft, borderColor: palette.primary,
     borderWidth: structure.borderWidth, flexDirection: 'row', gap: space[3],
     justifyContent: 'space-between', minHeight: 72, padding: space[3],
-    shadowColor: palette.ink, shadowOffset: { width: 4, height: 4 }, shadowOpacity: 1, shadowRadius: 0,
+    shadowColor: palette.primary, shadowOffset: { width: 4, height: 4 }, shadowOpacity: 1, shadowRadius: 0,
   },
   pressed: { transform: [{ translateX: 4 }, { translateY: 4 }] },
   copyBlock: { flex: 1 },
-  title: { color: palette.ink, fontFamily: 'Archivo', fontSize: 16, fontWeight: '900' },
-  detail: { color: palette.ink, fontFamily: 'PublicSans', fontSize: 13, lineHeight: 18, marginTop: 3 },
-  arrow: { color: palette.ink, fontFamily: 'Archivo', fontSize: 24, fontWeight: '900' },
+  title: { color: palette.primary, fontFamily: 'Archivo', fontSize: 16, fontWeight: '900' },
+  detail: { color: palette.primary, fontFamily: 'PublicSans', fontSize: 13, lineHeight: 18, marginTop: 3 },
+  arrow: { color: palette.primary, fontFamily: 'Archivo', fontSize: 24, fontWeight: '900' },
 });

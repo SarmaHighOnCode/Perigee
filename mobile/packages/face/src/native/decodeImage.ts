@@ -114,7 +114,7 @@ export function createSkiaImageCodec(
       let image: SkiaImageLike | null = null;
       try {
         try {
-          image = skia.Image.MakeImageFromEncoded(data);
+          image = skia.Skia.Image.MakeImageFromEncoded(data);
         } catch (error) {
           throw new FaceEngineError(
             'IMAGE_DECODE_FAILED',

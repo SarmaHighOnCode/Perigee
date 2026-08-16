@@ -24,6 +24,6 @@ export default function AboutScreen() {
 }
 
 const styles = StyleSheet.create({
-  copy: { color: palette.ink, fontFamily: 'PublicSans', fontSize: 14, lineHeight: 21 },
-  mono: { color: palette.ink, fontFamily: 'MartianMono', fontSize: 11, lineHeight: 17 },
+  copy: { color: palette.primary, fontFamily: 'PublicSans', fontSize: 14, lineHeight: 21 },
+  mono: { color: palette.primary, fontFamily: 'MartianMono', fontSize: 11, lineHeight: 17 },
 });

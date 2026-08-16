@@ -44,11 +44,11 @@ export default function FixtureScreen() {
 
 const styles = StyleSheet.create({
   fixture: {
-    backgroundColor: palette.paper, borderColor: palette.ink, borderWidth: structure.borderWidth,
+    backgroundColor: palette.canvasSoft, borderColor: palette.primary, borderWidth: structure.borderWidth,
     gap: space[1], minHeight: 96, padding: space[3],
   },
-  fixtureSelected: { backgroundColor: palette.signal, shadowColor: palette.ink, shadowOffset: { width: 5, height: 5 }, shadowOpacity: 1, shadowRadius: 0 },
-  name: { color: palette.ink, fontFamily: 'MartianMonoBold', fontSize: 11, letterSpacing: 1 },
-  title: { color: palette.ink, fontFamily: 'Archivo', fontSize: 18, fontWeight: '900', textTransform: 'uppercase' },
-  copy: { color: palette.ink, fontFamily: 'PublicSans', fontSize: 14, lineHeight: 20 },
+  fixtureSelected: { backgroundColor: palette.signal, shadowColor: palette.primary, shadowOffset: { width: 5, height: 5 }, shadowOpacity: 1, shadowRadius: 0 },
+  name: { color: palette.primary, fontFamily: 'MartianMonoBold', fontSize: 11, letterSpacing: 1 },
+  title: { color: palette.primary, fontFamily: 'Archivo', fontSize: 18, fontWeight: '900', textTransform: 'uppercase' },
+  copy: { color: palette.primary, fontFamily: 'PublicSans', fontSize: 14, lineHeight: 20 },
 });

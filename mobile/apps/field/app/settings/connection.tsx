@@ -96,14 +96,14 @@ export default function ConnectionScreen() {
 }
 
 const styles = StyleSheet.create({
-  label: { color: palette.ink, fontFamily: 'MartianMonoBold', fontSize: 11, letterSpacing: 1 },
+  label: { color: palette.primary, fontFamily: 'MartianMonoBold', fontSize: 11, letterSpacing: 1 },
   input: {
-    backgroundColor: palette.paper, borderColor: palette.ink, borderRadius: 4,
-    borderWidth: structure.borderWidth, color: palette.ink, fontFamily: 'MartianMono',
+    backgroundColor: palette.canvasSoft, borderColor: palette.primary, borderRadius: 4,
+    borderWidth: structure.borderWidth, color: palette.primary, fontFamily: 'MartianMono',
     fontSize: 14, minHeight: 54, padding: space[3],
   },
   fixtureInput: { minHeight: 150, textAlignVertical: 'top' },
-  copy: { color: palette.ink, fontFamily: 'PublicSans', fontSize: 13, lineHeight: 19 },
-  success: { backgroundColor: palette.clear, borderColor: palette.ink, borderWidth: 3, color: palette.ink, fontFamily: 'PublicSansBold', padding: space[3] },
-  error: { backgroundColor: palette.alert, borderColor: palette.ink, borderWidth: 3, color: palette.ink, fontFamily: 'PublicSansBold', padding: space[3] },
+  copy: { color: palette.primary, fontFamily: 'PublicSans', fontSize: 13, lineHeight: 19 },
+  success: { backgroundColor: palette.clear, borderColor: palette.primary, borderWidth: 3, color: palette.primary, fontFamily: 'PublicSansBold', padding: space[3] },
+  error: { backgroundColor: palette.alert, borderColor: palette.primary, borderWidth: 3, color: palette.primary, fontFamily: 'PublicSansBold', padding: space[3] },
 });

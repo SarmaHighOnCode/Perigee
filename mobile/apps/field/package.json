@@ -18,6 +18,7 @@
     "@expo-google-fonts/archivo": "0.4.2",
     "@expo-google-fonts/martian-mono": "0.4.2",
     "@expo-google-fonts/public-sans": "0.4.2",
+    "@expo/metro-runtime": "~6.1.2",
     "@perigee/api-client": "workspace:*",
     "@perigee/camera": "workspace:*",
     "@perigee/design-tokens": "workspace:*",
@@ -51,11 +52,13 @@
     "react-native-safe-area-context": "~5.6.2",
     "react-native-screens": "~4.16.0",
     "react-native-vision-camera": "5.2.2",
+    "react-native-web": "^0.21.2",
     "react-native-worklets": "0.5.1",
     "zustand": "5.0.14"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
+    "eas-cli": "^21.7.1",
     "typescript": "~5.9.2",
     "vitest": "4.1.10"
   },

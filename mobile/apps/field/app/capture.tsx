@@ -137,7 +137,7 @@ const styles = StyleSheet.create({
     width: 200,
   },
   reticleHint: {
-    backgroundColor: palette.ink,
+    backgroundColor: palette.primary,
     color: palette.signal,
     fontSize: 11,
     fontWeight: '900',
@@ -146,5 +146,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: space[2],
     paddingVertical: 4,
   },
-  errorText: { color: palette.ink, fontSize: 13, fontWeight: '700' },
+  errorText: { color: palette.primary, fontSize: 13, fontWeight: '700' },
 });

@@ -1,12 +1,13 @@
 import {
   palette,
+  radii,
   structure,
   typeScale,
   type Tone,
 } from '@perigee/design-tokens';
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
-import { getTonePresentation, minimumButtonHeight } from './semantics';
+import { minimumButtonHeight } from './semantics';
 
 export interface ButtonProps {
   label: string;
@@ -25,7 +26,7 @@ export interface ButtonProps {
 export function Button({
   label,
   onPress,
-  tone = 'signal',
+  tone = 'primary',
   size = 'secondary',
   disabled = false,
   loading = false,
@@ -34,11 +35,13 @@ export function Button({
   style,
   testID,
 }: ButtonProps) {
-  const { backgroundColor } = getTonePresentation(tone);
   const blocked = disabled || loading;
+  const isPrimary = tone === 'primary';
+  const backgroundColor = isPrimary ? palette.primary : palette.canvas;
+  const textColor = isPrimary ? palette.onPrimary : palette.primary;
+
   return (
     <View style={[styles.frame, style]}>
-      <View pointerEvents="none" style={styles.shadow} />
       <Pressable
         accessibilityHint={accessibilityHint}
         accessibilityLabel={loading ? `${label}, working` : label}
@@ -50,14 +53,18 @@ export function Button({
         style={({ pressed }) => [
           styles.button,
           {
-            backgroundColor: blocked ? palette.bone : variant === 'solid' ? backgroundColor : palette.paper,
+            backgroundColor: blocked ? palette.hairline : backgroundColor,
             minHeight: minimumButtonHeight(size),
+            borderColor: isPrimary ? 'transparent' : palette.hairline,
+            borderWidth: isPrimary ? 0 : 1,
           },
           pressed && !blocked ? styles.pressed : null,
           variant === 'ghost' ? styles.ghost : null,
         ]}
       >
-        <Text style={styles.label}>{loading ? 'WORKING…' : label}</Text>
+        <Text style={[styles.label, { color: textColor }]}>
+          {loading ? 'Working…' : label}
+        </Text>
       </Pressable>
     </View>
   );
@@ -65,36 +72,22 @@ export function Button({
 
 const styles = StyleSheet.create({
   frame: {
-    marginBottom: structure.shadowOffset,
-    marginRight: structure.shadowOffset,
     position: 'relative',
-  },
-  shadow: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: palette.ink,
-    transform: [
-      { translateX: structure.shadowOffset },
-      { translateY: structure.shadowOffset },
-    ],
   },
   button: {
     alignItems: 'center',
-    borderColor: palette.ink,
-    borderWidth: structure.borderWidth,
+    borderRadius: radii.pill,
     justifyContent: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
   },
   pressed: {
-    transform: [
-      { translateX: structure.shadowOffset },
-      { translateY: structure.shadowOffset },
-    ],
+    opacity: 0.8,
   },
-  ghost: { borderWidth: 0 },
+  ghost: { borderWidth: 0, backgroundColor: 'transparent' },
   label: {
-    color: palette.ink,
     fontFamily: 'Archivo',
-    ...typeScale.label,
+    ...typeScale.bodySmall,
+    fontWeight: '500',
     textAlign: 'center',
   },
 });

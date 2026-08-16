@@ -58,10 +58,10 @@ export default function PendingScreen() {
 }
 
 const styles = StyleSheet.create({
-  copy: { color: palette.ink, fontFamily: 'PublicSans', fontSize: 14, lineHeight: 21 },
-  mono: { color: palette.ink, fontFamily: 'MartianMono', fontSize: 11 },
+  copy: { color: palette.primary, fontFamily: 'PublicSans', fontSize: 14, lineHeight: 21 },
+  mono: { color: palette.primary, fontFamily: 'MartianMono', fontSize: 11 },
   limit: {
-    color: palette.ink, fontFamily: 'MartianMonoBold', fontSize: 11,
+    color: palette.primary, fontFamily: 'MartianMonoBold', fontSize: 11,
     letterSpacing: 1, marginTop: space[2], textAlign: 'center',
   },
 });

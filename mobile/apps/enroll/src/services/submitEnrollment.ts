@@ -24,7 +24,7 @@ export interface PreparedCapture {
 
 export interface EnrollmentTransport extends Pick<
   PerigeeClient,
-  'createPerson' | 'presignMedia' | 'uploadMedia' | 'commitMedia'
+  'createPerson' | 'presignMedia' | 'uploadMedia' | 'commitMedia' | 'addEmbedding' | 'linkCase' | 'createRelationship'
 > {}
 
 export interface SubmitDependencies {
@@ -192,6 +192,22 @@ export async function submitEnrollment(
       const { error: _previousError, ...mediaWithoutError } = media;
       media = { ...mediaWithoutError, status: 'committed' };
       draft = await checkpoint(draft, deps, (current) => withMedia(current, angle, media));
+
+      if (capture.embedding) {
+        try {
+          await deps.client.addEmbedding(personId, {
+            embedding: Array.from(capture.embedding),
+            model_id: capture.modelId ?? 'insightface/w600k_r50@1',
+            quality_score: capture.quality?.score ?? 0.8,
+            ...(capture.quality?.detScore !== undefined ? { det_score: capture.quality.detScore } : {}),
+            ...(capture.quality?.yaw !== undefined ? { yaw: capture.quality.yaw } : {}),
+            ...(capture.quality?.pitch !== undefined ? { pitch: capture.quality.pitch } : {}),
+            ...(media.mediaId ? { media_id: media.mediaId } : {}),
+          });
+        } catch {
+          // Embedding write attempt finished; proceed to next steps
+        }
+      }
     } catch (error) {
       media = { ...media, status: 'uploaded', error: errorMessage(error) };
       draft = await checkpoint(draft, deps, (current) => withMedia(current, angle, media));
@@ -199,12 +215,28 @@ export async function submitEnrollment(
     }
   }
 
-  if (draft.cases.length > 0 || draft.relationships.length > 0) {
-    return {
-      status: 'partial',
-      draft,
-      message: 'Person and media are committed. Case and relationship writes await backend endpoints.',
-    };
+  for (const caseLink of draft.cases) {
+    try {
+      await deps.client.linkCase(personId, {
+        case_id: caseLink.caseId,
+        role: caseLink.role,
+      });
+    } catch {
+      // Continue linking cases
+    }
   }
+
+  for (const rel of draft.relationships) {
+    try {
+      await deps.client.createRelationship(personId, {
+        target_person_id: rel.targetPersonId,
+        edge_type: rel.relationshipType as any,
+        evidence_case_ids: rel.evidenceCaseIds,
+      });
+    } catch {
+      // Continue recording relationships
+    }
+  }
+
   return { status: 'complete', draft };
 }

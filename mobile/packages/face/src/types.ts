@@ -68,6 +68,8 @@ export interface FaceInput {
   readonly width?: number;
   readonly height?: number;
   readonly signals?: QualitySignals;
+  readonly uri?: string;
+  readonly rgba?: Uint8Array;
 }
 
 export interface EmbedResult {

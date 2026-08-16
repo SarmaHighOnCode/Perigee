@@ -84,4 +84,71 @@ describe('Perigee Enroll commands', () => {
     expect(error).toBeInstanceOf(PerigeeApiError);
     expect(error).toMatchObject({ status: 503, code: 'OBJECT_STORAGE_UNAVAILABLE', requestId: 'server-1' });
   });
+
+  it('supports listCases, linkCase, and createRelationship contracts', async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(json({
+        cases: [{
+          case_id: 'case-1',
+          fir_number: 'FIR-123/2026',
+          station: 'Central',
+          district: 'Urban',
+          registered_on: '2026-01-01',
+          status: 'under_investigation',
+        }],
+        count: 1,
+        truncated: false,
+        dataset_mode: 'synthetic',
+        server_time: '2026-08-11T00:00:00Z',
+      }))
+      .mockResolvedValueOnce(json({
+        person_id: 'person-1',
+        case_id: 'case-1',
+        role: 'accused',
+        already_linked: false,
+        dataset_mode: 'synthetic',
+        server_time: '2026-08-11T00:00:00Z',
+      }, 201))
+      .mockResolvedValueOnce(json({
+        edge_id: 'edge-1',
+        src_person_id: 'person-1',
+        dst_person_id: 'person-2',
+        edge_type: 'known_associate',
+        weight: 0.8,
+        evidence_case_ids: ['case-1'],
+        already_existed: false,
+        dataset_mode: 'synthetic',
+        server_time: '2026-08-11T00:00:00Z',
+      }, 201));
+
+    const client = createPerigeeClient({
+      baseUrl: 'https://api.example.test',
+      deviceKey: 'secret',
+      officerId: 'OP-1',
+      fetch,
+      requestId: () => 'request-1',
+    });
+
+    const cases = await client.listCases({ q: 'FIR-123', district: 'Urban', limit: 10 });
+    expect(cases.cases).toHaveLength(1);
+    expect(cases.cases[0]?.fir_number).toBe('FIR-123/2026');
+
+    const linked = await client.linkCase('person-1', { case_id: 'case-1', role: 'accused' });
+    expect(linked.role).toBe('accused');
+
+    const rel = await client.createRelationship('person-1', {
+      target_person_id: 'person-2',
+      edge_type: 'known_associate',
+      evidence_case_ids: ['case-1'],
+      weight: 0.8,
+    });
+    expect(rel.edge_id).toBe('edge-1');
+
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+      'https://api.example.test/v1/cases?q=FIR-123&district=Urban&limit=10',
+      'https://api.example.test/v1/person/person-1/cases',
+      'https://api.example.test/v1/person/person-1/relationships',
+    ]);
+  });
 });
+

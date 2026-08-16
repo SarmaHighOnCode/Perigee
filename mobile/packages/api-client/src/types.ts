@@ -366,6 +366,56 @@ export interface CaseRef {
   status: string;
 }
 
+export interface CaseSummary {
+  case_id: Uuid;
+  fir_number: string;
+  station: string;
+  district: string;
+  registered_on: IsoDate;
+  status: string;
+}
+
+export interface CaseListResponse {
+  cases: CaseSummary[];
+  count: number;
+  truncated: boolean;
+  dataset_mode: string;
+  server_time: IsoDateTime;
+}
+
+export interface CaseLinkCreate {
+  case_id: Uuid;
+  role: PersonRole;
+}
+
+export interface CaseLinkCreated {
+  person_id: Uuid;
+  case_id: Uuid;
+  role: PersonRole;
+  already_linked: boolean;
+  dataset_mode: string;
+  server_time: IsoDateTime;
+}
+
+export interface RelationshipCreate {
+  target_person_id: Uuid;
+  edge_type: EdgeType;
+  evidence_case_ids: Uuid[];
+  weight?: number;
+}
+
+export interface RelationshipCreated {
+  edge_id: Uuid;
+  src_person_id: Uuid;
+  dst_person_id: Uuid;
+  edge_type: EdgeType;
+  weight: number;
+  evidence_case_ids: Uuid[];
+  already_existed: boolean;
+  dataset_mode: string;
+  server_time: IsoDateTime;
+}
+
 export interface GraphSummary {
   degree: number;
   community_id: number | null;

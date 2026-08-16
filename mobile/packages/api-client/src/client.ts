@@ -10,6 +10,9 @@ import { PerigeeApiError, parseErrorEnvelope } from './errors';
 import type {
   AuditVerifyOptions,
   AuditVerifyResponse,
+  CaseLinkCreate,
+  CaseLinkCreated,
+  CaseListResponse,
   ConfigResponse,
   DecisionRequest,
   EmbeddingCreate,
@@ -26,6 +29,8 @@ import type {
   PersonCreated,
   PersonDetail,
   ReadyResponse,
+  RelationshipCreate,
+  RelationshipCreated,
   SearchDetail,
   SearchRequest,
   SearchResponse,
@@ -70,6 +75,12 @@ export interface ClientOptions {
   requestId?: () => string;
 }
 
+export interface ListCasesOptions {
+  q?: string;
+  district?: string;
+  limit?: number;
+}
+
 export interface PerigeeClient {
   health(): Promise<HealthResponse>;
   ready(): Promise<ReadyResponse>;
@@ -92,6 +103,10 @@ export interface PerigeeClient {
   /** `searchId` is the purpose binding. Without it: 403. */
   getPerson(personId: Uuid, searchId: Uuid): Promise<PersonDetail>;
   person(personId: Uuid, searchId: Uuid): Promise<PersonDetail>;
+
+  listCases(opts?: ListCasesOptions): Promise<CaseListResponse>;
+  linkCase(personId: Uuid, body: CaseLinkCreate): Promise<CaseLinkCreated>;
+  createRelationship(personId: Uuid, body: RelationshipCreate): Promise<RelationshipCreated>;
 
   graph(personId: Uuid, opts?: GraphOptions): Promise<GraphResponse>;
   auditVerify(opts?: AuditVerifyOptions): Promise<AuditVerifyResponse>;
@@ -357,6 +372,25 @@ export function createClient(options: ClientOptions): PerigeeClient {
       }),
     person: (personId, searchId) =>
       send<PersonDetail>({ method: 'GET', path: `/v1/person/${encodeURIComponent(personId)}`, query: { search_id: searchId } }),
+
+    listCases: (opts) =>
+      send<CaseListResponse>({
+        method: 'GET',
+        path: '/v1/cases',
+        query: { q: opts?.q, district: opts?.district, limit: opts?.limit },
+      }),
+    linkCase: (personId, body) =>
+      send<CaseLinkCreated>({
+        method: 'POST',
+        path: `/v1/person/${encodeURIComponent(personId)}/cases`,
+        body,
+      }),
+    createRelationship: (personId, body) =>
+      send<RelationshipCreated>({
+        method: 'POST',
+        path: `/v1/person/${encodeURIComponent(personId)}/relationships`,
+        body,
+      }),
 
     graph: (personId, opts) =>
       send<GraphResponse>({

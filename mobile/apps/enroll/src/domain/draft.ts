@@ -1,5 +1,7 @@
 import type { MediaPresigned, PersonCreate } from '@perigee/api-client';
 
+import type { QualityReport } from '@perigee/face';
+
 export const DRAFT_SCHEMA_VERSION = 1;
 export const requiredCaptureAngles = ['frontal', 'left', 'right'] as const;
 
@@ -17,6 +19,9 @@ export interface EnrollmentCapture {
   acquiredAt: string;
   sha256?: string;
   exifStripped?: boolean;
+  quality?: QualityReport;
+  embedding?: number[] | Float32Array;
+  modelId?: string;
 }
 
 export interface CaseLinkDraft {

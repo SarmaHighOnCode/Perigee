@@ -16,10 +16,12 @@ describe('Perigee design tokens', () => {
       canvasSoft: '#fafafa',
       hairline: '#ebebeb',
       mute: '#888888',
-      signal: '#0070f3',
-      alert: '#ff0000',
+      // Accents are tuned so `primary` on them clears AA — they are fills that
+      // carry dark text, never text themselves. See __tests__/contrast.test.ts.
+      signal: '#1a80ff',
+      alert: '#ff2b2b',
       data: '#888888',
-      clear: '#0070f3',
+      clear: '#1a80ff',
       warn: '#f5a623',
     });
   });

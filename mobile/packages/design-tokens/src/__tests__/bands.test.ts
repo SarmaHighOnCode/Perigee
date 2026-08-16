@@ -32,42 +32,30 @@ describe('bands', () => {
   /**
    * Band legibility, measured rather than assumed.
    *
-   * No single foreground carries all four fills in the light palette, so each
-   * band names the one it needs. Recorded as data because a band chip is the
-   * one thing on the results screen an officer reads at a glance.
+   * A band chip is the one thing on the results screen an officer reads at a
+   * glance, so every band carries `primary` at AA — including STRONG, which
+   * missed at 4.48 : 1 until `alert` was lifted to #ff2b2b.
    */
-  const LEGIBLE_ON = {
-    NO_MATCH: { fg: 'onPrimary', measured: 4.5535 },
-    WEAK: { fg: 'primary', measured: 8.8455 },
-    REVIEW: { fg: 'primary', measured: 5.0574 },
-  } as const;
+  const MEASURED: Record<Band, number> = {
+    NO_MATCH: 4.7599,
+    WEAK: 8.8455,
+    REVIEW: 5.0574,
+    STRONG: 4.8084,
+  };
 
-  it.each(Object.entries(LEGIBLE_ON))(
-    '%s carries its label at AA on the band fill',
-    (band, { fg, measured }) => {
-      const ratio = contrastRatio(palette[fg], bands[band as Band].colour);
-      expect(ratio).toBeCloseTo(measured, 3);
-      expect(ratio).toBeGreaterThanOrEqual(AA);
-    },
-  );
+  it.each(ALL)('%s carries its label at AA on the band fill', (band) => {
+    const ratio = contrastRatio(palette.primary, bands[band].colour);
+    expect(ratio).toBeCloseTo(MEASURED[band], 3);
+    expect(ratio).toBeGreaterThanOrEqual(AA);
+  });
 
-  /**
-   * STRONG is the exception, and it is the worst one to have: 4.48 : 1 with
-   * dark text and 4.00 : 1 with white, so NEITHER foreground reaches AA on
-   * `alert`. STRONG CANDIDATE is the most consequential label the product
-   * shows.
-   *
-   * Asserted as failing so the gap is recorded rather than lost. Dark text is
-   * only 0.02 short — darkening `alert` slightly closes it, at which point
-   * this test fails loudly and should be promoted into LEGIBLE_ON above.
-   */
-  it('records that STRONG does not reach AA with either foreground', () => {
-    const dark = contrastRatio(palette.primary, bands.STRONG.colour);
-    const light = contrastRatio(palette.onPrimary, bands.STRONG.colour);
-
-    expect(dark).toBeCloseTo(4.4837, 3);
-    expect(light).toBeCloseTo(3.9985, 3);
-    expect(Math.max(dark, light)).toBeLessThan(AA);
+  it('leaves no band relying on a foreground the components do not use', () => {
+    // StatusChip and the candidate cards both render palette.primary. A band
+    // that only worked with white text would be legible in the audit and
+    // illegible on the screen.
+    for (const band of ALL) {
+      expect(contrastRatio(palette.primary, bands[band].colour)).toBeGreaterThanOrEqual(AA);
+    }
   });
 });
 

@@ -13,11 +13,16 @@ export const palette = {
   hairline: '#ebebeb',
   mute: '#888888',
 
-  signal: '#0070f3', // Maps to Vercel success/link
-  alert: '#ff0000', // Maps to Vercel error
-  data: '#888888', // Maps to Vercel mute
-  clear: '#0070f3',
-  warn: '#f5a623',
+  // Accents are FILLS carrying dark text, never body text on the canvas — see
+  // the audit in __tests__/contrast.test.ts. Each is therefore tuned so
+  // `primary` on it clears WCAG AA (4.5 : 1), which pure #0070f3 (3.94) and
+  // pure #ff0000 (4.48) both missed. Darkening them would have been the wrong
+  // direction: it is the TEXT that sits on top.
+  signal: '#1a80ff', // Vercel blue, lifted for legibility: 4.76 : 1
+  alert: '#ff2b2b', // Vercel error, lifted for legibility: 4.81 : 1
+  data: '#888888', // Maps to Vercel mute: 5.06 : 1
+  clear: '#1a80ff',
+  warn: '#f5a623', // 8.85 : 1
 } as const;
 
 export type PaletteTone = keyof typeof palette;

@@ -17,41 +17,42 @@ interface AuditedPair {
  * from a table. A hand-rounded contrast figure drifts from the colour it
  * claims to describe, and a drifted accessibility figure is worse than none:
  * it reads as a guarantee.
+ *
+ * The accents are FILLS carrying `primary` text — a band chip, a candidate
+ * card, an error box. So the pairing that has to clear AA is dark-on-accent,
+ * which is why `signal` and `alert` were lifted rather than deepened.
  */
 const AUDITED: readonly AuditedPair[] = [
   { fg: 'primary', bg: 'canvas', measured: 17.9278, verdict: 'AAA' },
   { fg: 'primary', bg: 'canvasSoft', measured: 17.1761, verdict: 'AAA' },
   { fg: 'onPrimary', bg: 'primary', measured: 17.9278, verdict: 'AAA' },
   { fg: 'primary', bg: 'warn', measured: 8.8455, verdict: 'AAA' },
-  { fg: 'onPrimary', bg: 'signal', measured: 4.5535, verdict: 'AA' },
-  { fg: 'signal', bg: 'canvas', measured: 4.5535, verdict: 'AA' },
+  { fg: 'primary', bg: 'data', measured: 5.0574, verdict: 'AA' },
+  { fg: 'primary', bg: 'alert', measured: 4.8084, verdict: 'AA' },
+  { fg: 'primary', bg: 'signal', measured: 4.7599, verdict: 'AA' },
+  { fg: 'primary', bg: 'clear', measured: 4.7599, verdict: 'AA' },
 ];
 
 /**
- * Pairings the light palette does NOT carry at body-text size.
+ * The rule the palette encodes: an accent is a FILL, never body text on the
+ * canvas. Amber on white is 2.03 : 1 — unreadable in the direct sun this app
+ * is used in — and no accent reaches AA that way round.
  *
- * These are asserted to fail, not skipped. The palette is what it is — this
- * records the consequence so it cannot be lost, and so any recolour that fixes
- * one of these breaks this test loudly instead of passing unnoticed.
- *
- * `warn` on `canvas` at 2.03 : 1 is the worst of them: amber on white is close
- * to unreadable in direct sun, which is the condition this app is used in.
- * Each of these needs either a darker hex or a filled chip (dark text on the
- * accent, as `primary` on `warn` above already does at 8.85 : 1).
+ * Asserted as failing so the rule is enforced by the suite rather than left to
+ * memory: reach for the chip form (dark text on the accent) instead.
  */
-const BELOW_AA: readonly { readonly fg: PaletteTone; readonly bg: PaletteTone; readonly measured: number }[] =
-  [
-    { fg: 'alert', bg: 'canvas', measured: 3.9985 },
-    { fg: 'data', bg: 'canvas', measured: 3.5449 },
-    { fg: 'mute', bg: 'canvas', measured: 3.5449 },
-    { fg: 'warn', bg: 'canvas', measured: 2.0268 },
-    { fg: 'primary', bg: 'signal', measured: 3.9372 },
-  ];
+const NEVER_AS_TEXT: readonly { readonly tone: PaletteTone; readonly measured: number }[] = [
+  { tone: 'signal', measured: 3.7664 },
+  { tone: 'alert', measured: 3.7284 },
+  { tone: 'warn', measured: 2.0268 },
+  { tone: 'data', measured: 3.5449 },
+  { tone: 'mute', measured: 3.5449 },
+];
 
 const BANNED: readonly { readonly fg: PaletteTone; readonly bg: PaletteTone; readonly measured: number }[] =
   [
-    { fg: 'signal', bg: 'data', measured: 1.2845 },
-    { fg: 'alert', bg: 'warn', measured: 1.9728 },
+    { fg: 'signal', bg: 'data', measured: 1.0625 },
+    { fg: 'alert', bg: 'warn', measured: 1.8396 },
   ];
 
 describe('contrastRatio', () => {
@@ -71,10 +72,7 @@ describe('contrastRatio', () => {
   });
 
   it('accepts hex with or without the leading #', () => {
-    expect(contrastRatio('171717', 'ffffff')).toBeCloseTo(
-      contrastRatio('#171717', '#ffffff'),
-      6,
-    );
+    expect(contrastRatio('171717', 'ffffff')).toBeCloseTo(contrastRatio('#171717', '#ffffff'), 6);
   });
 
   it.each(['', '#FFF', 'rebeccapurple', '#GGGGGG', '#0A0A0A0A'])(
@@ -95,24 +93,34 @@ describe('audited pairings', () => {
     expect(contrastRatio(palette[fg], palette[bg])).toBeCloseTo(measured, 3);
   });
 
+  it('carries dark text at AA on EVERY accent fill', () => {
+    // The whole point of the accent tuning. If a recolour breaks this, a band
+    // chip or a candidate card has become hard to read.
+    for (const accent of ['signal', 'alert', 'data', 'clear', 'warn'] as const) {
+      expect(contrastRatio(palette.primary, palette[accent])).toBeGreaterThanOrEqual(AA);
+    }
+  });
+
   it('carries body text on both canvases at AAA', () => {
     expect(contrastRatio(palette.primary, palette.canvas)).toBeGreaterThanOrEqual(AAA);
     expect(contrastRatio(palette.primary, palette.canvasSoft)).toBeGreaterThanOrEqual(AAA);
   });
 });
 
-describe('pairings below AA', () => {
-  it.each(BELOW_AA)('$fg on $bg measures $measured : 1', ({ fg, bg, measured }) => {
-    expect(contrastRatio(palette[fg], palette[bg])).toBeCloseTo(measured, 3);
+describe('accents are fills, not text', () => {
+  it.each(NEVER_AS_TEXT)('$tone on canvas measures $measured : 1', ({ tone, measured }) => {
+    expect(contrastRatio(palette[tone], palette.canvas)).toBeCloseTo(measured, 3);
   });
 
-  it.each(BELOW_AA)('$fg on $bg does NOT reach AA — do not use for body text', ({ fg, bg }) => {
-    expect(contrastRatio(palette[fg], palette[bg])).toBeLessThan(AA);
+  it.each(NEVER_AS_TEXT)('$tone must not be used as text on the canvas', ({ tone }) => {
+    expect(contrastRatio(palette[tone], palette.canvas)).toBeLessThan(AA);
   });
 
-  it('offers a compliant alternative for the warn accent', () => {
-    // The escape hatch: dark text on the fill, rather than the fill as text.
-    expect(contrastRatio(palette.primary, palette.warn)).toBeGreaterThanOrEqual(AAA);
+  it('offers the chip form as the compliant alternative', () => {
+    for (const tone of NEVER_AS_TEXT) {
+      if (tone.tone === 'mute') continue; // structural, never a fill
+      expect(contrastRatio(palette.primary, palette[tone.tone])).toBeGreaterThanOrEqual(AA);
+    }
   });
 });
 

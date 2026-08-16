@@ -1,3 +1,4 @@
+import { palette } from '@perigee/design-tokens';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -8,8 +9,10 @@ import {
 
 describe('shared UI semantics', () => {
   it('pairs each tone with visible language', () => {
+    // Resolved from the palette, not a copied hex: the point of the assertion
+    // is that a tone reaches its colour and its words, not what the colour is.
     expect(getTonePresentation('clear')).toEqual({
-      backgroundColor: '#00C853',
+      backgroundColor: palette.clear,
       label: 'CLEAR / COMPLETE',
     });
     expect(getTonePresentation('alert').label).toBe('STRONG / ALERT');

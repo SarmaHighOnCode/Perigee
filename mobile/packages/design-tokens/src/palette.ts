@@ -21,7 +21,15 @@ export const palette = {
 } as const;
 
 export type PaletteTone = keyof typeof palette;
-export type Tone = 'primary' | 'secondary' | 'signal' | 'alert' | 'data' | 'clear' | 'warn';
+
+// The semantic subset: tones that carry meaning, as opposed to the structural
+// keys (canvas, hairline, mute) used for surfaces. `satisfies` ties it to the
+// palette, so removing a colour here fails to compile rather than failing at
+// every `palette[tone]` call site — which is how 'secondary' survived its own
+// deletion until now.
+const TONES = ['primary', 'signal', 'alert', 'data', 'clear', 'warn'] as const satisfies
+  readonly PaletteTone[];
+export type Tone = (typeof TONES)[number];
 export type SemanticTone = PaletteTone | 'neutral';
 
 export type PaletteColour = (typeof palette)[PaletteTone];

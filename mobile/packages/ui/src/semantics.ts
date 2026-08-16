@@ -7,7 +7,6 @@ import {
 
 export function getTonePresentation(tone: Tone | 'neutral') {
   if (tone === 'neutral') return { backgroundColor: palette.canvasSoft, label: 'NOT TESTED' };
-  if (tone === 'secondary') return { backgroundColor: palette.canvas, label: 'SECONDARY' };
   return {
     backgroundColor: palette[tone],
     label: tone in statusLabels ? statusLabels[tone as keyof typeof statusLabels] : tone.toUpperCase(),

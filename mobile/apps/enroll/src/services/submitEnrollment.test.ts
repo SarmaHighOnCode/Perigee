@@ -26,6 +26,9 @@ function transport() {
     commitMedia: vi.fn().mockImplementation(async (_personId: string, mediaId: string) => ({
       media_id: mediaId, person_id: 'person-1', committed: true, bytes: 3,
     })),
+    addEmbedding: vi.fn().mockResolvedValue({ embedding_id: 'emb-1', person_id: 'person-1', model_id: 'insightface/w600k_r50@1' }),
+    linkCase: vi.fn().mockResolvedValue({ person_id: 'person-1', case_id: 'case-1', role: 'suspect', already_linked: false }),
+    createRelationship: vi.fn().mockResolvedValue({ edge_id: 'edge-1', src_person_id: 'person-1', dst_person_id: 'person-2' }),
   };
 }
 
@@ -95,11 +98,21 @@ describe('submitEnrollment', () => {
     expect(client.commitMedia).not.toHaveBeenCalled();
   });
 
-  it('reports locally staged annotations as partial until backend write endpoints exist', async () => {
+  it('links cases and creates relationships when present in draft', async () => {
     const client = transport();
-    const draft = { ...completeDraft(), cases: [{ caseId: 'case-1', role: 'suspect' as const }] };
+    const draft = {
+      ...completeDraft(),
+      cases: [{ caseId: 'case-1', role: 'suspect' as const }],
+      relationships: [{ targetPersonId: 'person-2', relationshipType: 'known_associate', evidenceCaseIds: ['case-1'] }],
+    };
     const result = await submitEnrollment(draft, { client, prepareCapture, persist: async () => undefined });
-    expect(result.status).toBe('partial');
-    expect(result.message).toMatch(/await backend endpoints/);
+    expect(result.status).toBe('complete');
+    expect(client.linkCase).toHaveBeenCalledWith('person-1', { case_id: 'case-1', role: 'suspect' });
+    expect(client.createRelationship).toHaveBeenCalledWith('person-1', {
+      target_person_id: 'person-2',
+      edge_type: 'known_associate',
+      evidence_case_ids: ['case-1'],
+    });
   });
 });
+

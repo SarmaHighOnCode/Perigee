@@ -31,9 +31,11 @@ export default function Capture() {
         // The embedding happens HERE, on the device. The photograph never
         // leaves — only 512 floats do. That is a property of the network
         // topology, not of a policy document. docs/ADR/0001.
-        // FaceInput carries frame data, not a URI. The fixture engine ignores
-        // it; the real SCRFD + ArcFace engine will decode the frame here.
+        // The URI is what the ONNX engine decodes; the fixture engine ignores
+        // it. Without it the real engine has no pixels to read, and only the
+        // fixture path appears to work.
         const result = await engine.embed({
+          uri: capture.uri,
           ...(capture.width !== null ? { width: capture.width } : {}),
           ...(capture.height !== null ? { height: capture.height } : {}),
         });

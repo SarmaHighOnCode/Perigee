@@ -9,6 +9,7 @@ import type {
   QualityReport,
   SelfTestReport,
 } from '../types';
+import type { SelfTestPair } from '../selftest';
 import { aggregateEmbeddings } from './aggregate';
 import { ARCFACE_TEMPLATE, estimateSimilarityTransform, warpRgba } from './align';
 import { ensureModel, type ModelFileAdapter } from './model-cache';
@@ -360,9 +361,14 @@ export class OnnxFaceEngine implements FaceEngine {
     );
   }
 
-  async selfTest(): Promise<SelfTestReport> {
+  /**
+   * Pairs are REQUIRED to pass. Called bare — as the FaceEngine interface
+   * allows — this reports `passed: false` with "the engine was never
+   * exercised", because that is the truth: no image reached the model.
+   */
+  async selfTest(pairs: readonly SelfTestPair[] = []): Promise<SelfTestReport> {
     const { runSelfTest } = await import('../selftest');
-    return runSelfTest(this);
+    return runSelfTest(this, pairs);
   }
 }
 

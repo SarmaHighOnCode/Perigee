@@ -10,7 +10,7 @@
 import Constants from 'expo-constants';
 
 import { createClient, type PerigeeClient } from '@perigee/api-client';
-import { createFixtureEngine, type FaceEngine } from '@perigee/face';
+import { createFaceEngine, createFixtureEngine, type FaceEngine } from '@perigee/face';
 
 function envValue(key: string, fallback = ''): string {
   const extra = (Constants.expoConfig?.extra ?? {}) as Record<string, unknown>;
@@ -35,19 +35,19 @@ export function getClient(officerId: string): PerigeeClient {
 }
 
 /**
- * FACE RECOGNITION IS DELIBERATELY ON HOLD.
+ * EXPO_PUBLIC_USE_ONNX selects the engine. Off (or unset) returns
+ * deterministic synthetic vectors that exercise the pgvector search path and
+ * the decision loop — CONNECTIVITY FIXTURES, never presented to the officer
+ * as recognition results; the shift screen says so in plain text.
  *
- * This returns deterministic synthetic vectors that exercise the pgvector
- * search path and the decision loop. They are CONNECTIVITY FIXTURES and are
- * never presented to the officer as recognition results — the shift screen
- * says so in plain text.
- *
- * The real on-device SCRFD + ArcFace engine implements this same FaceEngine
- * interface, so nothing above this line changes when it lands.
+ * On device this is the single swap point: nothing above this line, and
+ * nothing calling getFaceEngine(), needs to know which one it got — both
+ * implement the same FaceEngine interface.
  */
 let engine: FaceEngine | null = null;
 
 export function getFaceEngine(): FaceEngine {
-  engine ??= createFixtureEngine();
+  if (engine) return engine;
+  engine = envValue('EXPO_PUBLIC_USE_ONNX') === 'true' ? createFaceEngine() : createFixtureEngine();
   return engine;
 }

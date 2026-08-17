@@ -1,8 +1,9 @@
 /**
  * docs/07-DESIGN-SYSTEM.md §4.
  *
- * `border: 3 solid ink` and `shadow: 5 5 0 ink` are the entire design system.
- * Shadow direction is always bottom-right — one light source, top-left.
+ * Structure is carried by a hairline border and rounded corners, not by the
+ * heavy 3 px border and hard offset shadow the brutalist palette used before
+ * the light redesign. Depth comes from `elevation` below.
  */
 export const structure = {
   borderWidth: 1,

@@ -1,0 +1,24 @@
+# Root-level ignore for `vercel deploy` invoked from the repo root, needed
+# because Project Settings -> Root Directory ("backend") is applied on top of
+# whatever the CLI uploads, and a bare `cd backend && vercel deploy` double-
+# applies that path. Deploying from the repo root instead requires this file,
+# or the upload includes mobile/ and node_modules/ (over 1GB).
+mobile/
+node_modules/
+backend/node_modules/
+backend/.venv/
+backend/__pycache__/
+backend/.pytest_cache/
+backend/.ruff_cache/
+backend/tests/
+backend/fixtures/
+.git/
+docs/
+web/
+
+# CRITICAL: Vercel prefers pyproject.toml over requirements.txt when present,
+# and backend/pyproject.toml declares NO runtime dependencies (it is only
+# ruff/pytest/pyright config). Shipping it makes the build install nothing and
+# every request fail with FUNCTION_INVOCATION_FAILED. backend/.vercelignore
+# excludes it for the same reason; this file must too.
+backend/pyproject.toml

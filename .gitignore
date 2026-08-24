@@ -43,3 +43,6 @@ mobile/**/ios/
 testing/face-models/cache/
 *.onnx
 buffalo_l*.zip
+
+# Vercel CLI project link, created when deploying from the repo root
+.vercel/

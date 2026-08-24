@@ -22,24 +22,28 @@ export default function ReviewScreen() {
   const [working, setWorking] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [status, setStatus] = useState<'clear' | 'warn' | 'alert'>('warn');
+  const [canForceRetry, setCanForceRetry] = useState(false);
 
   if (!draft) return <Screen title="No active draft"><Button label="GO TO DRAFTS" onPress={() => router.replace('/(tabs)/drafts')} /></Screen>;
   const readiness = reviewReadiness(draft);
   const configured = Boolean(operatorId && deviceKey);
+  const embeddedAngles = requiredCaptureAngles.filter((angle) => draft.captures[angle]?.embedding);
 
-  async function submit() {
+  async function submit(forceAfterUnknown = false) {
     if (!configured || !readiness.ready) return;
     setWorking(true);
     setMessage(null);
+    if (!forceAfterUnknown) setCanForceRetry(false);
     try {
       const result = await submitEnrollment(draft!, {
         client,
         prepareCapture: prepareCaptureForUpload,
         persist: async (next) => saveDraft(next),
-      });
+      }, { forceAfterUnknown });
       saveDraft(result.draft);
-      setMessage(result.message ?? (result.status === 'complete' ? 'Person and all three media files committed.' : result.status));
+      setMessage(result.message ?? (result.status === 'complete' ? 'Person, media, embedding and annotations all committed.' : result.status));
       setStatus(result.status === 'complete' ? 'clear' : result.status === 'partial' ? 'warn' : 'alert');
+      setCanForceRetry(Boolean(result.canForceRetry));
       addActivity({
         id: `activity-${Date.now()}`, title: `Enrollment ${result.status}`,
         detail: result.message ?? result.draft.submission.person.personId ?? result.draft.draftId,
@@ -56,7 +60,15 @@ export default function ReviewScreen() {
   }
 
   return (
-    <Screen action={<Button disabled={!readiness.ready || !configured} label="CREATE PERSON & UPLOAD 3 PHOTOS" loading={working} onPress={() => void submit()} size="primary" />} eyebrow="Explicit commit" title="Review">
+    <Screen action={(
+      <Button
+        disabled={!readiness.ready || !configured || working}
+        label={canForceRetry ? 'RETRY SUBMISSION' : 'CREATE PERSON & UPLOAD 3 PHOTOS'}
+        loading={working}
+        onPress={() => void submit(canForceRetry)}
+        size="primary"
+      />
+    )} eyebrow="Explicit commit" title="Review">
       <WizardProgress current="review" />
       <SyntheticBanner compact />
       <Card eyebrow="Identity" title={draft.identity.full_name} trailing={<StatusChip label={readiness.issues.length === 0 ? 'VALID' : 'CHECK'} tone={readiness.issues.length === 0 ? 'clear' : 'alert'} />}>
@@ -70,18 +82,39 @@ export default function ReviewScreen() {
         })}
         <Text style={styles.copy}>Metadata is removed losslessly before upload; JPEG compressed scan data is not re-encoded.</Text>
       </Card>
-      <Card eyebrow="Deferred biometric module" title="No embedding created" tone="data">
-        <StatusChip label="FACE RECOGNITION ON HOLD" tone="data" />
-        <Text style={styles.copy}>The current submission creates the person and commits media only. It never fabricates an embedding or quality score.</Text>
+      <Card
+        eyebrow="Face recognition"
+        title={embeddedAngles.length > 0 ? `${embeddedAngles.length}/3 embeddings ready` : 'No embedding yet'}
+        tone={embeddedAngles.length > 0 ? 'clear' : 'warn'}
+      >
+        {requiredCaptureAngles.map((angle) => {
+          const capture = draft.captures[angle];
+          const score = capture?.quality?.score;
+          return (
+            <Text key={angle} style={styles.row}>
+              {angle.toUpperCase()} · {capture?.embedding ? `EMBEDDING READY · QUALITY ${score?.toFixed(2)}` : 'NO EMBEDDING'}
+            </Text>
+          );
+        })}
+        <Text style={styles.copy}>
+          {embeddedAngles.length > 0
+            ? 'Embeddings are submitted with the enrollment so this person is searchable.'
+            : 'Retake at least the frontal capture so this person can be matched in searches.'}
+        </Text>
       </Card>
       {(draft.cases.length > 0 || draft.relationships.length > 0) ? (
-        <Card eyebrow="Unsupported by current PR" title="Annotations remain local" tone="warn">
-          <Text style={styles.copy}>{draft.cases.length} case links · {draft.relationships.length} relationships. The receipt will remain partial until backend write endpoints exist.</Text>
+        <Card eyebrow="Submitted with enrollment" title="Record context" tone="clear">
+          <Text style={styles.copy}>{draft.cases.length} case links · {draft.relationships.length} relationships will be written to the server.</Text>
         </Card>
       ) : null}
       {!configured ? <Card title="Connection required" tone="alert"><Text style={styles.copy}>Set an operator ID and device key before submission.</Text><Button label="OPEN CONNECTION" onPress={() => router.push('/settings/connection')} tone="alert" /></Card> : null}
       {readiness.issues.map((issue) => <Text accessibilityRole="alert" key={issue} style={styles.error}>{issue}</Text>)}
       {message ? <Text accessibilityRole="alert" style={[styles.message, status === 'clear' ? styles.clear : status === 'alert' ? styles.alert : styles.warn]}>{message}</Text> : null}
+      {canForceRetry ? (
+        <Card eyebrow="Recovery" title="Retry anyway?" tone="warn">
+          <Text style={styles.copy}>The first attempt may or may not have created this person. Retrying can create a duplicate record, but unblocks the demo enrollment.</Text>
+        </Card>
+      ) : null}
     </Screen>
   );
 }

@@ -17,9 +17,11 @@ import { ReducedMotionConfig, ReduceMotion } from 'react-native-reanimated';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { useEnrollStore } from '../state/enrollStore';
+import { useModelPreload } from '../services/modelPreload';
 
 export function AppProviders({ children }: PropsWithChildren) {
   const setConnection = useEnrollStore((state) => state.setConnection);
+  const startModelPreload = useModelPreload((state) => state.start);
   const [queryClient] = useState(() => new QueryClient({
     defaultOptions: { queries: { retry: 1, staleTime: 15_000 }, mutations: { retry: false } },
   }));
@@ -30,6 +32,10 @@ export function AppProviders({ children }: PropsWithChildren) {
     PublicSans: PublicSans_400Regular,
     PublicSansBold: PublicSans_700Bold,
   });
+
+  useEffect(() => {
+    startModelPreload();
+  }, [startModelPreload]);
 
   useEffect(() => {
     void SystemUI.setBackgroundColorAsync(palette.canvasSoft);

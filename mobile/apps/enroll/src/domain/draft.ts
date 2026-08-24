@@ -50,6 +50,17 @@ export interface SubmissionState {
   person: { status: PersonSubmissionStatus; personId?: string; error?: string };
   media: Partial<Record<RequiredCaptureAngle, MediaSubmissionCheckpoint>>;
   embedding: { status: 'deferred' };
+  outcome?: SubmissionOutcome;
+}
+
+export interface SubmissionOutcome {
+  finishedAt: string;
+  embeddings: number;
+  embeddingErrors: string[];
+  casesLinked: number;
+  caseErrors: string[];
+  relationshipsCreated: number;
+  relationshipErrors: string[];
 }
 
 export interface EnrollmentDraft {
@@ -122,6 +133,18 @@ export function addCaseLink(draft: EnrollmentDraft, link: CaseLinkDraft, at = no
   };
 }
 
+export function removeCaseLink(draft: EnrollmentDraft, caseId: string, at = nowIso()): EnrollmentDraft {
+  return {
+    ...draft,
+    cases: draft.cases.filter((item) => item.caseId !== caseId),
+    relationships: draft.relationships.map((item) => ({
+      ...item,
+      evidenceCaseIds: item.evidenceCaseIds.filter((id) => id !== caseId),
+    })),
+    updatedAt: at,
+  };
+}
+
 export function addRelationship(
   draft: EnrollmentDraft,
   relationship: RelationshipDraft,
@@ -144,6 +167,20 @@ export function setSubmission(
   at = nowIso(),
 ): EnrollmentDraft {
   return { ...draft, submission, updatedAt: at };
+}
+
+export function removeRelationship(
+  draft: EnrollmentDraft,
+  targetPersonId: string,
+  relationshipType: string,
+  at = nowIso(),
+): EnrollmentDraft {
+  return {
+    ...draft,
+    relationships: draft.relationships.filter((item) =>
+      !(item.targetPersonId === targetPersonId && item.relationshipType === relationshipType)),
+    updatedAt: at,
+  };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

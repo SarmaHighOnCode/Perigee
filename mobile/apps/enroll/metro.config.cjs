@@ -15,4 +15,16 @@ config.resolver.nodeModulesPaths = [...new Set([
   path.resolve(workspaceRoot, 'node_modules'),
 ])];
 
+// pnpm's hoisted node-linker materialises full copies of react/react-native
+// under packages/*/node_modules. Metro would then bundle a second React and a
+// second React Native, and the duplicate instance's internals come back null
+// ("Cannot read property 'use' of null" on first render). Hide the nested
+// copies so resolution walks up to the single workspace-root install.
+const duplicatedSingletons =
+  /[\\/]packages[\\/][^\\/]+[\\/]node_modules[\\/](react|react-dom|react-is|scheduler|react-native|react-native-safe-area-context)[\\/]/;
+config.resolver.blockList = [
+  ...[config.resolver.blockList].flat().filter(Boolean),
+  duplicatedSingletons,
+];
+
 module.exports = config;

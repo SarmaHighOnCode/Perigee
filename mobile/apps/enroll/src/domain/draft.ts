@@ -57,6 +57,8 @@ export interface SubmissionOutcome {
   finishedAt: string;
   embeddings: number;
   embeddingErrors: string[];
+  /** Mugshot failures. Non-fatal: they never block the embedding write. */
+  mediaErrors: string[];
   casesLinked: number;
   caseErrors: string[];
   relationshipsCreated: number;

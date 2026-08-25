@@ -13,7 +13,7 @@ export default function ReceiptScreen() {
   const embedded = requiredCaptureAngles.filter((angle) => draft.captures[angle]?.embedding);
   const outcome = draft.submission.outcome;
   const failures = outcome
-    ? outcome.embeddingErrors.length + outcome.caseErrors.length + outcome.relationshipErrors.length
+    ? outcome.mediaErrors.length + outcome.embeddingErrors.length + outcome.caseErrors.length + outcome.relationshipErrors.length
     : 0;
   return (
     <Screen action={<Button label="RETURN TO RECORDS" onPress={() => router.replace('/(tabs)/roster')} size="primary" />} eyebrow="Enrollment receipt" title={failures > 0 ? 'Committed with issues' : 'Committed'}>
@@ -43,10 +43,10 @@ export default function ReceiptScreen() {
       {outcome ? (
         <Card
           eyebrow="Record context"
-          title={`${outcome.casesLinked} case links · ${outcome.relationshipsCreated} relationships`}
+          title={`${outcome.embeddings} embeddings · ${outcome.casesLinked} case links · ${outcome.relationshipsCreated} relationships`}
           tone={failures > 0 ? 'warn' : 'clear'}
         >
-          {[...outcome.caseErrors, ...outcome.relationshipErrors, ...outcome.embeddingErrors].map((item) => (
+          {[...outcome.caseErrors, ...outcome.relationshipErrors, ...outcome.embeddingErrors, ...outcome.mediaErrors].map((item) => (
             <Text key={item} style={styles.copy}>{item}</Text>
           ))}
           {failures === 0 ? <Text style={styles.copy}>All annotations were written to the server.</Text> : null}

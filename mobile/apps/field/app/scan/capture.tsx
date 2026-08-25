@@ -1,6 +1,6 @@
 import { CameraStage, normalizeMedia } from '@perigee/camera';
 import { palette, space } from '@perigee/design-tokens';
-import { Button, Card, Screen, SyntheticBanner } from '@perigee/ui';
+import { Button, Screen, SyntheticBanner } from '@perigee/ui';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useState } from 'react';
@@ -10,6 +10,7 @@ import { useFieldStore } from '../../src/state/fieldStore';
 
 export default function CaptureScreen() {
   const setMedia = useFieldStore((state) => state.setMedia);
+  const setProbe = useFieldStore((state) => state.setProbe);
   const [error, setError] = useState<string | null>(null);
 
   async function importFromGallery() {
@@ -22,6 +23,9 @@ export default function CaptureScreen() {
       });
       const asset = result.canceled ? undefined : result.assets[0];
       if (!asset) return;
+      // A capture that never got embedded shouldn't leave a stale probe
+      // behind for the next photo to silently inherit.
+      setProbe(null);
       setMedia(normalizeMedia({
         uri: asset.uri,
         width: asset.width,
@@ -40,12 +44,10 @@ export default function CaptureScreen() {
   return (
     <Screen eyebrow="STEP 1 · LOCAL MEDIA" title="Capture probe">
       <SyntheticBanner compact />
-      <Card eyebrow="Biometric module deferred" title="Camera proof, not recognition" tone="data">
-        <Text style={styles.copy}>The image remains local during this synthetic connectivity flow. No face vector is calculated from it.</Text>
-      </Card>
       <CameraStage
         compact
         onCapture={({ media }) => {
+          setProbe(null);
           setMedia(media);
           router.push('/scan/review');
         }}

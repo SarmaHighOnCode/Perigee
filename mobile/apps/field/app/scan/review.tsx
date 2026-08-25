@@ -24,8 +24,8 @@ export default function ReviewCaptureScreen() {
         <Text style={styles.data}>{media.megapixels ?? '?'} MP · {formatBytes(media.bytes)}</Text>
         <Text style={styles.copy}>No crop, editing or quality reduction was requested by Perigee.</Text>
       </Card>
-      <Card eyebrow="Deferred" title="Face quality unavailable" tone="warn">
-        <Text style={styles.copy}>Pose, detection confidence and facial sharpness require the held face module. This app does not invent those values.</Text>
+      <Card eyebrow="Next step" title="Quality is computed on-device" tone="data">
+        <Text style={styles.copy}>Pose, detection confidence and facial sharpness are measured after this capture is confirmed.</Text>
       </Card>
       <Button label="RETAKE / CHOOSE ANOTHER" onPress={() => router.replace('/scan/capture')} tone="neutral" />
     </Screen>

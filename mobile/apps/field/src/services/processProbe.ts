@@ -1,5 +1,6 @@
-import { createFaceEngine } from '@perigee/face';
-import type { EmbedResult, FaceEngine, QualityReport } from '@perigee/face';
+import type { FaceEngine, QualityReport } from '@perigee/face';
+
+import { getFaceEngine } from './faceEngine';
 
 export interface ProcessedProbe {
   embedding: Float32Array;
@@ -10,7 +11,7 @@ export interface ProcessedProbe {
 
 export async function processProbe(
   uri: string,
-  engine: FaceEngine = createFaceEngine(),
+  engine: FaceEngine = getFaceEngine(),
 ): Promise<ProcessedProbe> {
   const result = await engine.embed({ uri });
   return {

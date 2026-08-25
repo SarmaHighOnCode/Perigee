@@ -3,6 +3,8 @@ import type {
   PerigeeClient,
 } from '@perigee/api-client';
 
+import { arrayBufferToBase64 } from './uploadMedia';
+
 import {
   requiredCaptureAngles,
   setSubmission,
@@ -30,7 +32,14 @@ export interface SubmitOptions {
 
 export interface EnrollmentTransport extends Pick<
   PerigeeClient,
-  'createPerson' | 'presignMedia' | 'uploadMedia' | 'commitMedia' | 'addEmbedding' | 'linkCase' | 'createRelationship'
+  | 'createPerson'
+  | 'presignMedia'
+  | 'uploadMedia'
+  | 'commitMedia'
+  | 'createMediaDirect'
+  | 'addEmbedding'
+  | 'linkCase'
+  | 'createRelationship'
 > {}
 
 export interface SubmitDependencies {
@@ -203,20 +212,43 @@ export async function submitEnrollment(
         // definitive 503 was misread as an ambiguous outcome and the operator
         // was told to "inspect the server" over a setting that is simply off.
         const storageUnavailable = errorCode(error) === 'STORAGE_UNAVAILABLE';
-        media = {
-          status: storageUnavailable ? 'failed' : 'unknown',
-          error: errorMessage(error),
-        };
-        draft = await checkpoint(draft, deps, (current) => withMedia(current, angle, media));
         if (!storageUnavailable) {
+          media = { status: 'unknown', error: errorMessage(error) };
+          draft = await checkpoint(draft, deps, (current) => withMedia(current, angle, media));
           return {
             status: 'needs_recovery',
             draft,
             message: `${angle} media reservation outcome is unknown.`,
           };
         }
-        outcome.mediaErrors.push(`${angle}: ${errorMessage(error)}`);
-        continue;
+
+        // R2 is off (no payment method on file, deliberately). Fall back to
+        // storing the mugshot inline via Postgres - same bytes, same sha256,
+        // one call instead of presign+upload+commit. Only sensible at the
+        // small scale (tens of people) this fallback exists for.
+        try {
+          const direct = await deps.client.createMediaDirect(personId, {
+            capture_angle: angle,
+            content_type: capture.mimeType === 'image/png' ? 'image/png' : 'image/jpeg',
+            is_primary: angle === 'frontal',
+            image_base64: arrayBufferToBase64(
+              prepared.body instanceof ArrayBuffer ? prepared.body : await prepared.body.arrayBuffer(),
+            ),
+            sha256: prepared.sha256,
+            width: prepared.width,
+            height: prepared.height,
+            exif_stripped: prepared.exifStripped,
+          });
+          media = { status: 'committed', mediaId: direct.media_id };
+          draft = await checkpoint(draft, deps, (current) => withMedia(current, angle, media));
+          mediaIds[angle] = direct.media_id;
+          continue;
+        } catch (directError) {
+          media = { status: 'failed', error: errorMessage(directError) };
+          draft = await checkpoint(draft, deps, (current) => withMedia(current, angle, media));
+          outcome.mediaErrors.push(`${angle}: ${errorMessage(directError)}`);
+          continue;
+        }
       }
     }
 

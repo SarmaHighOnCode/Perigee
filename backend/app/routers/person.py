@@ -25,6 +25,7 @@ from app.models.person import (
     MediaCommit,
     MediaCommitted,
     MediaCreate,
+    MediaDirectCreate,
     MediaPresigned,
     MediaRef,
     OffenceRef,
@@ -36,6 +37,7 @@ from app.repositories import person as person_repo
 from app.routers.search import assert_purpose_authorised
 from app.services.audit_chain import append as audit_append
 from app.services.embedding import validate_embedding
+from app.services.media_bytes import to_data_uri
 from app.services.object_storage import get_storage
 
 router = APIRouter(prefix="/v1", tags=["person"])
@@ -258,6 +260,91 @@ async def commit_media(
     )
 
 
+@router.post(
+    "/person/{person_id}/media/direct",
+    response_model=MediaCommitted,
+    status_code=status.HTTP_201_CREATED,
+    summary="Store a mugshot inline, for a deployment with no object storage",
+    description=(
+        "Presign + upload + commit collapsed into one call. Only sensible at "
+        "small scale (tens of people, not thousands) - image bytes DO transit "
+        "this service here, which is exactly what the R2 path avoids. Exists "
+        "because Cloudflare requires a payment method on file for R2 even "
+        "within its free tier, and this deployment has none."
+    ),
+    dependencies=[Depends(rate_limit_write)],
+)
+async def create_media_direct(
+    person_id: UUID,
+    payload: MediaDirectCreate,
+    ctx: RequestContext = Depends(request_context),
+    settings: Settings = Depends(get_settings),
+    pool: asyncpg.Pool = Depends(get_pool),
+) -> MediaCommitted:
+    import base64
+    import hashlib
+
+    try:
+        image_bytes = base64.b64decode(payload.image_base64, validate=True)
+    except (ValueError, base64.binascii.Error) as exc:
+        raise MalformedRequest("image_base64 is not valid base64") from exc
+
+    if not image_bytes:
+        raise MalformedRequest("image_base64 decoded to zero bytes")
+
+    if len(image_bytes) > settings.media_max_bytes:
+        raise MalformedRequest(
+            f"image is {len(image_bytes)} bytes, limit is {settings.media_max_bytes}",
+            detail={"bytes": len(image_bytes), "max_bytes": settings.media_max_bytes},
+        )
+
+    # The client's assertion is re-derived, not trusted - the same principle
+    # the R2 path applies via storage.head()'s true byte count.
+    actual_sha256 = hashlib.sha256(image_bytes).hexdigest()
+    if actual_sha256.lower() != payload.sha256.lower():
+        raise MalformedRequest(
+            "sha256 does not match the decoded image bytes",
+            detail={"expected": payload.sha256, "actual": actual_sha256},
+        )
+
+    async with pool.acquire() as conn:
+        if await person_repo.get_person(conn, person_id) is None:
+            raise NotFound("Person not found")
+
+        async with conn.transaction():
+            row = await person_repo.create_media_direct(
+                conn,
+                person_id,
+                image_bytes,
+                payload.content_type,
+                payload.capture_angle,
+                payload.is_primary,
+                actual_sha256,
+                payload.width,
+                payload.height,
+                payload.exif_stripped,
+            )
+            await audit_append(
+                conn,
+                actor_type="operator",
+                actor_id=ctx.officer_id,
+                device_id=ctx.device.device_id,
+                action="person.media_committed",
+                subject_type="person",
+                subject_id=str(person_id),
+                payload={"media_id": str(row["media_id"]), "bytes": len(image_bytes)},
+            )
+
+    return MediaCommitted(
+        media_id=row["media_id"],
+        person_id=person_id,
+        committed=True,
+        bytes=len(image_bytes),
+        dataset_mode=settings.dataset_mode,
+        server_time=datetime.now(UTC),
+    )
+
+
 @router.get(
     "/person/{person_id}",
     response_model=PersonDetail,
@@ -315,7 +402,13 @@ async def get_person(
         media=[
             MediaRef(
                 media_id=m["media_id"],
-                url=storage.presign_get_safe(m["r2_key"]),
+                url=(
+                    storage.presign_get_safe(m["r2_key"])
+                    if m["r2_key"]
+                    else to_data_uri(m["content_type"] or "image/jpeg", m["image_bytes"])
+                    if m["image_bytes"]
+                    else None
+                ),
                 angle=m["capture_angle"],
                 is_primary=m["is_primary"],
             )

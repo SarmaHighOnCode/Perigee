@@ -111,6 +111,32 @@ function digestHex(digest: ArrayBuffer): string {
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
+const BASE64_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+
+/**
+ * Dependency-free ArrayBuffer -> base64, for the Postgres media fallback.
+ *
+ * File.base64() reads the ORIGINAL file, which still carries the EXIF this
+ * module exists to strip - GPS and a device serial that must never reach the
+ * server. This encodes the already-sanitized bytes instead. `btoa` is not a
+ * reliable global across Hermes/RN versions, so this stays dependency-free
+ * rather than assuming it exists.
+ */
+export function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let out = '';
+  for (let i = 0; i < bytes.length; i += 3) {
+    const b0 = bytes[i]!;
+    const b1 = bytes[i + 1];
+    const b2 = bytes[i + 2];
+    out += BASE64_ALPHABET[b0 >> 2];
+    out += BASE64_ALPHABET[((b0 & 0x03) << 4) | ((b1 ?? 0) >> 4)];
+    out += b1 === undefined ? '=' : BASE64_ALPHABET[((b1 & 0x0f) << 2) | ((b2 ?? 0) >> 6)];
+    out += b2 === undefined ? '=' : BASE64_ALPHABET[b2 & 0x3f];
+  }
+  return out;
+}
+
 export async function prepareCaptureForUpload(capture: EnrollmentCapture): Promise<PreparedCapture> {
   const [{ File }, Crypto] = await Promise.all([
     import('expo-file-system'),

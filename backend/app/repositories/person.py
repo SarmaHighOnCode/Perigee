@@ -76,7 +76,8 @@ async def summarise(conn: asyncpg.Connection, person_ids: list[UUID]) -> dict[st
                COALESCE(c.case_count, 0)  AS case_count,
                COALESCE(c.convictions, 0) AS convictions,
                c.latest,
-               m.r2_key AS mugshot_key
+               m.r2_key AS mugshot_key, m.image_bytes AS mugshot_bytes,
+               m.content_type AS mugshot_content_type
         FROM   person p
         LEFT   JOIN LATERAL (
             SELECT count(*)                                            AS case_count,
@@ -87,7 +88,7 @@ async def summarise(conn: asyncpg.Connection, person_ids: list[UUID]) -> dict[st
             WHERE  pc.person_id = p.person_id
         ) c ON true
         LEFT   JOIN LATERAL (
-            SELECT r2_key FROM media
+            SELECT r2_key, image_bytes, content_type FROM media
             WHERE  person_id = p.person_id AND committed
             ORDER  BY is_primary DESC, created_at
             LIMIT  1
@@ -105,6 +106,8 @@ async def summarise(conn: asyncpg.Connection, person_ids: list[UUID]) -> dict[st
             "convictions": int(r["convictions"]),
             "latest": r["latest"],
             "mugshot_key": r["mugshot_key"],
+            "mugshot_bytes": r["mugshot_bytes"],
+            "mugshot_content_type": r["mugshot_content_type"],
         }
         for r in rows
     }
@@ -132,7 +135,7 @@ async def get_media(conn: asyncpg.Connection, person_id: UUID) -> list[asyncpg.R
     return list(
         await conn.fetch(
             """
-            SELECT media_id, r2_key, capture_angle, is_primary
+            SELECT media_id, r2_key, image_bytes, content_type, capture_angle, is_primary
             FROM   media
             WHERE  person_id = $1 AND committed
             ORDER  BY is_primary DESC, created_at
@@ -220,6 +223,45 @@ async def create_media(
             is_primary,
         ),
         "media insert",
+    )
+
+
+async def create_media_direct(
+    conn: asyncpg.Connection,
+    person_id: UUID,
+    image_bytes: bytes,
+    content_type: str,
+    capture_angle: str,
+    is_primary: bool,
+    sha256_hex: str,
+    width: int | None,
+    height: int | None,
+    exif_stripped: bool,
+) -> asyncpg.Record:
+    """One INSERT, already committed - there is no separate upload step to
+    wait for when the bytes arrive in the same request that reserves the row."""
+    return require_row(
+        await conn.fetchrow(
+            """
+            INSERT INTO media (
+                person_id, image_bytes, content_type, capture_angle, is_primary,
+                sha256, bytes, width, height, exif_stripped, committed, committed_at
+            )
+            VALUES ($1,$2,$3,$4,$5,decode($6,'hex'),$7,$8,$9,$10,true,now())
+            RETURNING media_id
+            """,
+            person_id,
+            image_bytes,
+            content_type,
+            capture_angle,
+            is_primary,
+            sha256_hex,
+            len(image_bytes),
+            width,
+            height,
+            exif_stripped,
+        ),
+        "media insert (direct)",
     )
 
 

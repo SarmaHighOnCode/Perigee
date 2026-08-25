@@ -82,6 +82,23 @@ class MediaPresigned(BaseModel):
     server_time: datetime
 
 
+class MediaDirectCreate(BaseModel):
+    """Presign + upload + commit collapsed into one call, for a deployment
+    with no object storage: the bytes ARE the request, so there is nothing
+    left to reserve a slot for in advance."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    capture_angle: CaptureAngle = "frontal"
+    content_type: Literal["image/jpeg", "image/png"] = "image/jpeg"
+    is_primary: bool = False
+    image_base64: str = Field(min_length=1)
+    sha256: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-fA-F]{64}$")
+    width: int | None = Field(default=None, gt=0)
+    height: int | None = Field(default=None, gt=0)
+    exif_stripped: bool = True
+
+
 class MediaCommit(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

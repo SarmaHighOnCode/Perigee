@@ -144,7 +144,13 @@ export async function prepareCaptureForUpload(capture: EnrollmentCapture): Promi
   ]);
   const original = await new File(capture.uri).arrayBuffer();
   const sanitized = sanitizeImageBytes(new Uint8Array(original), capture.mimeType ?? '');
-  const digest = await Crypto.digest(Crypto.CryptoDigestAlgorithm.SHA256, sanitized.body);
+  // expo-crypto's Android bridge has no converter for a bare ArrayBuffer and
+  // rejects it with "Cannot convert '[object ArrayBuffer]' to a Kotlin type",
+  // which fails the upload after the embedding already succeeded.
+  const digest = await Crypto.digest(
+    Crypto.CryptoDigestAlgorithm.SHA256,
+    new Uint8Array(sanitized.body),
+  );
   return {
     body: sanitized.body,
     sha256: digestHex(digest),

@@ -39,6 +39,37 @@ export type SessionFactory = (
   options?: { executionProviders?: readonly string[] },
 ) => Promise<InferenceSessionLike>;
 
+interface OrtTensorConstructor {
+  new (type: 'float32', data: Float32Array, dims: number[]): unknown;
+}
+
+interface OrtSession {
+  run(feeds: Record<string, unknown>): Promise<Record<string, TensorValue>>;
+  release(): Promise<void>;
+}
+
+/**
+ * onnxruntime's JSI bridge reads cpuData/dims/type off each feed value and
+ * rejects anything else with "Invalid tensor object". The engine speaks plain
+ * {data, dims} internally so tests can inject a fake session, so this adapter
+ * is the one place that has to hand the runtime real Tensor instances.
+ */
+export function createOrtSession(
+  Tensor: OrtTensorConstructor,
+  session: OrtSession,
+): InferenceSessionLike {
+  return {
+    run: async (feeds) => {
+      const ortFeeds: Record<string, unknown> = {};
+      for (const [name, value] of Object.entries(feeds)) {
+        ortFeeds[name] = new Tensor('float32', value.data, [...value.dims]);
+      }
+      return session.run(ortFeeds);
+    },
+    release: () => session.release(),
+  };
+}
+
 export interface OnnxFaceEngineOptions {
   detectorPath?: string;
   recogniserPath?: string;
@@ -178,10 +209,15 @@ export class OnnxFaceEngine implements FaceEngine {
 
     if (!sessionFactory) {
       const ort = await import('onnxruntime-react-native');
-      sessionFactory = (path, opts) =>
-        ort.InferenceSession.create(path, {
+      sessionFactory = async (path, opts) => {
+        const session = await ort.InferenceSession.create(path, {
           executionProviders: (opts?.executionProviders ?? ['cpu']) as readonly ['cpu'],
-        }) as unknown as Promise<InferenceSessionLike>;
+        });
+        return createOrtSession(
+          ort.Tensor as unknown as OrtTensorConstructor,
+          session as unknown as OrtSession,
+        );
+      };
     }
 
     let detectorPath = this.options.detectorPath;

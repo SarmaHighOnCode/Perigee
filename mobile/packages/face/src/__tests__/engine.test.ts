@@ -1,9 +1,58 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { FaceEngineError } from '../errors';
-import { OnnxFaceEngine, letterboxRgba, type InferenceSessionLike, type TensorValue } from '../onnx/engine';
+import {
+  OnnxFaceEngine,
+  createOrtSession,
+  letterboxRgba,
+  type InferenceSessionLike,
+  type TensorValue,
+} from '../onnx/engine';
 import { DETECTOR, MODEL_ID, RECOGNISER } from '../onnx/models';
 import { assertEmbedding } from '../onnx/tensor';
+
+describe('createOrtSession', () => {
+  // onnxruntime's JSI bridge reads cpuData/dims/type off the feed values and
+  // rejects anything else with "Invalid tensor object". The engine speaks plain
+  // {data, dims} internally so tests can inject a fake session, so this adapter
+  // is the one place that has to produce real Tensor instances.
+  class FakeTensor {
+    constructor(
+      readonly type: string,
+      readonly cpuData: Float32Array,
+      readonly dims: number[],
+    ) {}
+  }
+
+  it('converts plain {data, dims} feeds into real Tensor instances', async () => {
+    const run = vi.fn(async (_feeds: Record<string, unknown>) => ({
+      '683': { data: new Float32Array(512), dims: [1, 512] },
+    }));
+    const session = createOrtSession(FakeTensor, { run, release: vi.fn(async () => {}) });
+
+    const data = new Float32Array([1, 2, 3]);
+    await session.run({ 'input.1': { data, dims: [1, 3, 1, 1] } });
+
+    const feeds = run.mock.calls[0]![0] as Record<string, FakeTensor>;
+    const tensor = feeds['input.1']!;
+    expect(tensor).toBeInstanceOf(FakeTensor);
+    expect(tensor.type).toBe('float32');
+    expect(tensor.cpuData).toBe(data);
+    expect(tensor.dims).toEqual([1, 3, 1, 1]);
+  });
+
+  it('passes session outputs straight back through', async () => {
+    const output = { '683': { data: new Float32Array(512), dims: [1, 512] } };
+    const session = createOrtSession(FakeTensor, {
+      run: vi.fn(async () => output),
+      release: vi.fn(async () => {}),
+    });
+
+    await expect(session.run({ 'input.1': { data: new Float32Array(3), dims: [3] } })).resolves.toBe(
+      output,
+    );
+  });
+});
 
 describe('letterboxRgba', () => {
   it('correctly rescales and letterboxes dimensions', () => {

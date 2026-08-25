@@ -1,6 +1,27 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { arrayBufferToBase64, sanitizeImageBytes } from './uploadMedia';
+import { arrayBufferToBase64, prepareCaptureForUpload, sanitizeImageBytes } from './uploadMedia';
+
+const { jpegFixture, digestSpy } = vi.hoisted(() => ({
+  jpegFixture: new Uint8Array([
+    0xff, 0xd8,
+    0xff, 0xdb, 0x00, 0x04, 0x01, 0x02,
+    0xff, 0xda, 0x00, 0x04, 0x03, 0x04, 0x11, 0x22, 0xff, 0xd9,
+  ]),
+  digestSpy: vi.fn(async (_algorithm: string, _data: unknown) => new Uint8Array(32).buffer),
+}));
+
+vi.mock('expo-file-system', () => ({
+  File: class {
+    constructor(readonly uri: string) {}
+    arrayBuffer = async () => jpegFixture.buffer;
+  },
+}));
+
+vi.mock('expo-crypto', () => ({
+  CryptoDigestAlgorithm: { SHA256: 'SHA-256' },
+  digest: digestSpy,
+}));
 
 function bytes(...values: Array<number | number[]>): Uint8Array {
   return new Uint8Array(values.flat());
@@ -66,5 +87,27 @@ describe('arrayBufferToBase64', () => {
     const encoded = arrayBufferToBase64(original);
     const decoded = Uint8Array.from(Buffer.from(encoded, 'base64'));
     expect(Array.from(decoded)).toEqual(Array.from(new Uint8Array(original)));
+  });
+});
+
+describe('prepareCaptureForUpload', () => {
+  it('hands expo-crypto a typed-array view, not a bare ArrayBuffer', async () => {
+    // expo-crypto's Android bridge has no converter for a raw ArrayBuffer and
+    // fails the whole upload with "Cannot convert '[object ArrayBuffer]' to a
+    // Kotlin type", so the digest input has to stay a view.
+    digestSpy.mockClear();
+    await prepareCaptureForUpload({
+      angle: 'frontal',
+      uri: 'file:///capture.jpg',
+      width: 1856,
+      height: 4096,
+      bytes: jpegFixture.byteLength,
+      mimeType: 'image/jpeg',
+      source: 'gallery',
+      acquiredAt: '2026-08-25T00:00:00.000Z',
+    });
+
+    const data = digestSpy.mock.calls[0]![1] as unknown;
+    expect(ArrayBuffer.isView(data)).toBe(true);
   });
 });

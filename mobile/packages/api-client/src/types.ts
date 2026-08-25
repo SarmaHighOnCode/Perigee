@@ -338,6 +338,24 @@ export interface MediaCommitted {
   server_time: IsoDateTime;
 }
 
+/**
+ * Presign + upload + commit collapsed into one call, for a deployment with no
+ * object storage configured. Only sensible at small scale: unlike the R2
+ * path, these bytes DO transit the API.
+ */
+export interface MediaDirectCreate {
+  capture_angle?: CaptureAngle;
+  content_type?: 'image/jpeg' | 'image/png';
+  is_primary?: boolean;
+  /** Base64-encoded image bytes. */
+  image_base64: string;
+  /** 64 hex characters, of the DECODED bytes. Re-derived and checked server-side. */
+  sha256: string;
+  width?: number | null;
+  height?: number | null;
+  exif_stripped?: boolean;
+}
+
 export interface MediaRef {
   media_id: Uuid;
   url: string | null;

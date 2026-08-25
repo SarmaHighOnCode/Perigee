@@ -23,6 +23,7 @@ import type {
   MediaCommit,
   MediaCommitted,
   MediaCreate,
+  MediaDirectCreate,
   MediaPresigned,
   PendingResponse,
   PersonCreate,
@@ -100,6 +101,8 @@ export interface PerigeeClient {
   presignMedia(personId: Uuid, body?: MediaCreate): Promise<MediaPresigned>;
   uploadMedia(reservation: MediaPresigned, body: Blob | ArrayBuffer): Promise<void>;
   commitMedia(personId: Uuid, mediaId: Uuid, body: MediaCommit): Promise<MediaCommitted>;
+  /** Presign+upload+commit in one call, for a deployment with no R2. */
+  createMediaDirect(personId: Uuid, body: MediaDirectCreate): Promise<MediaCommitted>;
   /** `searchId` is the purpose binding. Without it: 403. */
   getPerson(personId: Uuid, searchId: Uuid): Promise<PersonDetail>;
   person(personId: Uuid, searchId: Uuid): Promise<PersonDetail>;
@@ -361,6 +364,12 @@ export function createClient(options: ClientOptions): PerigeeClient {
       send<MediaCommitted>({
         method: 'POST',
         path: `/v1/person/${encodeURIComponent(personId)}/media/${encodeURIComponent(mediaId)}/commit`,
+        body,
+      }),
+    createMediaDirect: (personId, body) =>
+      send<MediaCommitted>({
+        method: 'POST',
+        path: `/v1/person/${encodeURIComponent(personId)}/media/direct`,
         body,
       }),
 

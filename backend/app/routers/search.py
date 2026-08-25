@@ -49,6 +49,7 @@ from app.repositories import search as search_repo
 from app.services import vector_search
 from app.services.audit_chain import append as audit_append
 from app.services.embedding import validate_embedding
+from app.services.media_bytes import to_data_uri
 from app.services.object_storage import get_storage
 from app.services.scoring import (
     ADVISORY,
@@ -90,7 +91,15 @@ async def _build_candidates(
                 district=info.get("district"),
                 similarity=c.similarity,
                 band=c.band,
-                mugshot_url=storage.presign_get_safe(info.get("mugshot_key")),
+                mugshot_url=(
+                    storage.presign_get_safe(info.get("mugshot_key"))
+                    if info.get("mugshot_key")
+                    else to_data_uri(
+                        info["mugshot_content_type"] or "image/jpeg", info["mugshot_bytes"]
+                    )
+                    if info.get("mugshot_bytes")
+                    else None
+                ),
                 record_summary=RecordSummary(
                     case_count=int(info.get("case_count", 0)),
                     convictions=int(info.get("convictions", 0)),

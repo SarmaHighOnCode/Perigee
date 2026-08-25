@@ -26,6 +26,10 @@ function transport() {
     commitMedia: vi.fn().mockImplementation(async (_personId: string, mediaId: string) => ({
       media_id: mediaId, person_id: 'person-1', committed: true, bytes: 3,
     })),
+    createMediaDirect: vi.fn().mockImplementation(async (_personId: string, media: { capture_angle: string }) => ({
+      media_id: `direct-${media.capture_angle}`, person_id: 'person-1', committed: true, bytes: 3,
+      dataset_mode: 'synthetic', server_time: 'now',
+    })),
     addEmbedding: vi.fn().mockResolvedValue({ embedding_id: 'emb-1', person_id: 'person-1', model_id: 'insightface/w600k_r50@1' }),
     linkCase: vi.fn().mockResolvedValue({ person_id: 'person-1', case_id: 'case-1', role: 'suspect', already_linked: false }),
     createRelationship: vi.fn().mockResolvedValue({ edge_id: 'edge-1', src_person_id: 'person-1', dst_person_id: 'person-2' }),
@@ -87,29 +91,49 @@ describe('submitEnrollment', () => {
     expect(client.createPerson).toHaveBeenCalledOnce();
   });
 
-  it('keeps object storage failures resumable and never emits completion', async () => {
+  it('falls back to inline Postgres storage when R2 presign is unavailable', async () => {
+    // The actual deployment shape: no payment method on file, so R2 is off.
+    // presignMedia 503s STORAGE_UNAVAILABLE; createMediaDirect (one call,
+    // bytes included) is what actually lands the mugshot.
     const client = transport();
-    // STORAGE_UNAVAILABLE is the code the server actually emits (app/errors.py).
-    // This test previously used 'OBJECT_STORAGE_UNAVAILABLE', which nothing
-    // emits, so it asserted against a failure mode that could not occur.
-    client.presignMedia.mockRejectedValueOnce(Object.assign(new Error('storage disabled'), {
+    client.presignMedia.mockRejectedValue(Object.assign(new Error('storage disabled'), {
       code: 'STORAGE_UNAVAILABLE', status: 503,
     }));
+
+    const result = await submitEnrollment(completeDraft(), { client, prepareCapture, persist: async () => undefined });
+
+    expect(client.createMediaDirect).toHaveBeenCalledTimes(3);
+    expect(client.uploadMedia).not.toHaveBeenCalled();
+    expect(client.commitMedia).not.toHaveBeenCalled();
+    expect(result.draft.submission.media.frontal).toMatchObject({ status: 'committed', mediaId: 'direct-frontal' });
+    expect(result.status).toBe('complete');
+  });
+
+  it('keeps object storage failures resumable when BOTH R2 and the fallback are down', async () => {
+    const client = transport();
+    client.presignMedia.mockRejectedValue(Object.assign(new Error('storage disabled'), {
+      code: 'STORAGE_UNAVAILABLE', status: 503,
+    }));
+    client.createMediaDirect.mockRejectedValue(new Error('database unreachable'));
+
     const result = await submitEnrollment(completeDraft(), { client, prepareCapture, persist: async () => undefined });
     expect(result.status).toBe('partial');
     expect(result.draft.submission.media.frontal).toMatchObject({ status: 'failed' });
-    expect(result.message).toMatch(/storage disabled/);
+    expect(result.message).toMatch(/database unreachable/);
   });
 
   it('still writes every embedding when object storage is switched off entirely', async () => {
     // The regression this guards: with R2 unset, presign 503s for all three
     // angles. Embeddings used to be nested inside the media-commit success
     // path, so the person was created with ZERO vectors - present in the
-    // database and permanently unfindable by search.
+    // database and permanently unfindable by search. Both storage paths are
+    // made to fail here so this exercises the true worst case: embeddings
+    // must survive even when NO mugshot can be stored anywhere.
     const client = transport();
     client.presignMedia.mockRejectedValue(Object.assign(new Error('storage disabled'), {
       code: 'STORAGE_UNAVAILABLE', status: 503,
     }));
+    client.createMediaDirect.mockRejectedValue(new Error('database unreachable'));
 
     let draft = completeDraft();
     for (const angle of ['frontal', 'left', 'right'] as const) {
@@ -126,7 +150,7 @@ describe('submitEnrollment', () => {
     expect(client.addEmbedding).toHaveBeenCalledTimes(3);
     expect(result.draft.submission.outcome?.embeddings).toBe(3);
     expect(result.status).toBe('partial');
-    // No mugshot committed, so no media_id may be attached to the vector.
+    // No mugshot committed anywhere, so no media_id may be attached to the vector.
     expect(client.addEmbedding.mock.calls[0]?.[1]).not.toHaveProperty('media_id');
   });
 

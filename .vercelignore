@@ -1,8 +1,14 @@
-# Root-level ignore for `vercel deploy` invoked from the repo root, needed
-# because Project Settings -> Root Directory ("backend") is applied on top of
-# whatever the CLI uploads, and a bare `cd backend && vercel deploy` double-
-# applies that path. Deploying from the repo root instead requires this file,
-# or the upload includes mobile/ and node_modules/ (over 1GB).
+# Root-level ignore, shared by every Vercel project connected to this repo
+# (perigee-core AND web) - Vercel strips these paths from the checkout before
+# ANY project's Root Directory is applied, so this file must never exclude a
+# directory another project's build actually needs. web/ was excluded here
+# once; that broke web's own "Root Directory: web" build with "No Next.js
+# version detected" the moment its Git integration was connected, because
+# there was nothing left under web/ to find a package.json in.
+#
+# Only truly universal junk belongs here: multi-gigabyte trees nothing
+# builds from directly (mobile/'s node_modules alone is ~1GB, which is what
+# this file exists to keep out of a `vercel deploy` run from the repo root).
 mobile/
 node_modules/
 backend/node_modules/
@@ -12,9 +18,9 @@ backend/.pytest_cache/
 backend/.ruff_cache/
 backend/tests/
 backend/fixtures/
+web/node_modules/
+web/.next/
 .git/
-docs/
-web/
 
 # CRITICAL: Vercel prefers pyproject.toml over requirements.txt when present,
 # and backend/pyproject.toml declares NO runtime dependencies (it is only

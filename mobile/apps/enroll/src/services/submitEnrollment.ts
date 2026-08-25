@@ -99,6 +99,7 @@ export async function submitEnrollment(
     finishedAt: '',
     embeddings: 0,
     embeddingErrors: [],
+    mediaErrors: [],
     casesLinked: 0,
     caseErrors: [],
     relationshipsCreated: 0,
@@ -141,11 +142,30 @@ export async function submitEnrollment(
     }
   }
 
+  // MEDIA FIRST, THEN EMBEDDINGS - and never the other way round.
+  //
+  // The embedding is what makes a person findable; the mugshot is what makes a
+  // candidate legible once found. Writing the embedding used to be nested inside
+  // the media-commit success path, so a deployment with no object storage
+  // configured (R2 unset -> 503 STORAGE_UNAVAILABLE on presign) enrolled people
+  // who could never be matched: identity row present, zero vectors, invisible to
+  // search. That is the silent failure docs/05 warns about, reached through the
+  // ordinary happy path.
+  //
+  // So media failure now degrades instead of aborting. A DEFINITIVE refusal from
+  // the server (storage is off) is recorded and skipped; an AMBIGUOUS one (the
+  // request may or may not have landed) still stops everything, because retrying
+  // those is what creates duplicates.
+  const mediaIds: Partial<Record<RequiredCaptureAngle, string>> = {};
+
   for (const angle of requiredCaptureAngles) {
     const capture = draft.captures[angle];
     if (!capture) return { status: 'blocked', draft, message: `Missing ${angle} capture` };
     let media = draft.submission.media[angle] ?? { status: 'idle' as const };
-    if (media.status === 'committed') continue;
+    if (media.status === 'committed') {
+      if (media.mediaId) mediaIds[angle] = media.mediaId;
+      continue;
+    }
     if (media.status === 'unknown') {
       return {
         status: 'needs_recovery', draft,
@@ -159,7 +179,8 @@ export async function submitEnrollment(
     } catch (error) {
       media = { ...media, status: 'failed', error: errorMessage(error) };
       draft = await checkpoint(draft, deps, (current) => withMedia(current, angle, media));
-      return { status: 'blocked', draft, message: `Could not prepare ${angle} image` };
+      outcome.mediaErrors.push(`${angle}: ${errorMessage(error)}`);
+      continue;
     }
 
     if (media.status === 'uploaded' && !media.mediaId) {
@@ -177,19 +198,25 @@ export async function submitEnrollment(
         media = { status: 'presigned', mediaId: reservation.media_id, reservation };
         draft = await checkpoint(draft, deps, (current) => withMedia(current, angle, media));
       } catch (error) {
-        const storageUnavailable = errorCode(error) === 'OBJECT_STORAGE_UNAVAILABLE';
+        // The server names this STORAGE_UNAVAILABLE. This used to compare
+        // against 'OBJECT_STORAGE_UNAVAILABLE', which no endpoint emits, so a
+        // definitive 503 was misread as an ambiguous outcome and the operator
+        // was told to "inspect the server" over a setting that is simply off.
+        const storageUnavailable = errorCode(error) === 'STORAGE_UNAVAILABLE';
         media = {
           status: storageUnavailable ? 'failed' : 'unknown',
           error: errorMessage(error),
         };
         draft = await checkpoint(draft, deps, (current) => withMedia(current, angle, media));
-        return {
-          status: storageUnavailable ? 'blocked' : 'needs_recovery',
-          draft,
-          message: storageUnavailable
-            ? 'Object storage is unavailable. The created person and draft are preserved for retry.'
-            : `${angle} media reservation outcome is unknown.`,
-        };
+        if (!storageUnavailable) {
+          return {
+            status: 'needs_recovery',
+            draft,
+            message: `${angle} media reservation outcome is unknown.`,
+          };
+        }
+        outcome.mediaErrors.push(`${angle}: ${errorMessage(error)}`);
+        continue;
       }
     }
 
@@ -202,7 +229,8 @@ export async function submitEnrollment(
       } catch (error) {
         media = { ...media, status: 'failed', error: errorMessage(error) };
         draft = await checkpoint(draft, deps, (current) => withMedia(current, angle, media));
-        return { status: 'blocked', draft, message: `${angle} upload failed and can be retried` };
+        outcome.mediaErrors.push(`${angle}: ${errorMessage(error)}`);
+        continue;
       }
     }
 
@@ -217,27 +245,34 @@ export async function submitEnrollment(
       const { error: _previousError, ...mediaWithoutError } = media;
       media = { ...mediaWithoutError, status: 'committed' };
       draft = await checkpoint(draft, deps, (current) => withMedia(current, angle, media));
-
-      if (capture.embedding) {
-        try {
-          await deps.client.addEmbedding(personId, {
-            embedding: Array.from(capture.embedding),
-            model_id: capture.modelId ?? 'insightface/w600k_r50@1',
-            quality_score: capture.quality?.score ?? 0.8,
-            ...(capture.quality?.detScore !== undefined ? { det_score: capture.quality.detScore } : {}),
-            ...(capture.quality?.yaw !== undefined ? { yaw: capture.quality.yaw } : {}),
-            ...(capture.quality?.pitch !== undefined ? { pitch: capture.quality.pitch } : {}),
-            ...(media.mediaId ? { media_id: media.mediaId } : {}),
-          });
-          outcome.embeddings += 1;
-        } catch (error) {
-          outcome.embeddingErrors.push(`${angle}: ${errorMessage(error)}`);
-        }
-      }
+      if (media.mediaId) mediaIds[angle] = media.mediaId;
     } catch (error) {
       media = { ...media, status: 'uploaded', error: errorMessage(error) };
       draft = await checkpoint(draft, deps, (current) => withMedia(current, angle, media));
-      return { status: 'blocked', draft, message: `${angle} commit failed and can be retried` };
+      outcome.mediaErrors.push(`${angle}: ${errorMessage(error)}`);
+    }
+  }
+
+  // Unconditional: a capture that produced an embedding gets that embedding
+  // written, whatever happened to its mugshot. media_id is attached only when
+  // the upload actually committed.
+  for (const angle of requiredCaptureAngles) {
+    const capture = draft.captures[angle];
+    if (!capture?.embedding) continue;
+    const mediaId = mediaIds[angle];
+    try {
+      await deps.client.addEmbedding(personId, {
+        embedding: Array.from(capture.embedding),
+        model_id: capture.modelId ?? 'insightface/w600k_r50@1',
+        quality_score: capture.quality?.score ?? 0.8,
+        ...(capture.quality?.detScore !== undefined ? { det_score: capture.quality.detScore } : {}),
+        ...(capture.quality?.yaw !== undefined ? { yaw: capture.quality.yaw } : {}),
+        ...(capture.quality?.pitch !== undefined ? { pitch: capture.quality.pitch } : {}),
+        ...(mediaId ? { media_id: mediaId } : {}),
+      });
+      outcome.embeddings += 1;
+    } catch (error) {
+      outcome.embeddingErrors.push(`${angle}: ${errorMessage(error)}`);
     }
   }
 
@@ -267,6 +302,7 @@ export async function submitEnrollment(
   }
 
   const failures = [
+    ...outcome.mediaErrors,
     ...outcome.embeddingErrors,
     ...outcome.caseErrors,
     ...outcome.relationshipErrors,

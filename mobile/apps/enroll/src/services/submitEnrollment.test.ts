@@ -89,13 +89,69 @@ describe('submitEnrollment', () => {
 
   it('keeps object storage failures resumable and never emits completion', async () => {
     const client = transport();
+    // STORAGE_UNAVAILABLE is the code the server actually emits (app/errors.py).
+    // This test previously used 'OBJECT_STORAGE_UNAVAILABLE', which nothing
+    // emits, so it asserted against a failure mode that could not occur.
     client.presignMedia.mockRejectedValueOnce(Object.assign(new Error('storage disabled'), {
-      code: 'OBJECT_STORAGE_UNAVAILABLE', status: 503,
+      code: 'STORAGE_UNAVAILABLE', status: 503,
     }));
     const result = await submitEnrollment(completeDraft(), { client, prepareCapture, persist: async () => undefined });
-    expect(result.status).toBe('blocked');
+    expect(result.status).toBe('partial');
     expect(result.draft.submission.media.frontal).toMatchObject({ status: 'failed' });
-    expect(client.commitMedia).not.toHaveBeenCalled();
+    expect(result.message).toMatch(/storage disabled/);
+  });
+
+  it('still writes every embedding when object storage is switched off entirely', async () => {
+    // The regression this guards: with R2 unset, presign 503s for all three
+    // angles. Embeddings used to be nested inside the media-commit success
+    // path, so the person was created with ZERO vectors - present in the
+    // database and permanently unfindable by search.
+    const client = transport();
+    client.presignMedia.mockRejectedValue(Object.assign(new Error('storage disabled'), {
+      code: 'STORAGE_UNAVAILABLE', status: 503,
+    }));
+
+    let draft = completeDraft();
+    for (const angle of ['frontal', 'left', 'right'] as const) {
+      draft = setCapture(draft, {
+        ...draft.captures[angle]!,
+        embedding: new Float32Array(512).fill(0.1),
+        modelId: 'insightface/w600k_r50@1',
+        quality: { score: 0.82, detScore: 0.95, blur: 120, yaw: 2, pitch: 1, facePx: 220 },
+      });
+    }
+
+    const result = await submitEnrollment(draft, { client, prepareCapture, persist: async () => undefined });
+
+    expect(client.addEmbedding).toHaveBeenCalledTimes(3);
+    expect(result.draft.submission.outcome?.embeddings).toBe(3);
+    expect(result.status).toBe('partial');
+    // No mugshot committed, so no media_id may be attached to the vector.
+    expect(client.addEmbedding.mock.calls[0]?.[1]).not.toHaveProperty('media_id');
+  });
+
+  it('attaches media_id to the embedding when the mugshot did commit', async () => {
+    const client = transport();
+    let draft = completeDraft();
+    draft = setCapture(draft, {
+      ...draft.captures.frontal!,
+      embedding: new Float32Array(512).fill(0.2),
+      modelId: 'insightface/w600k_r50@1',
+      quality: { score: 0.9, detScore: 0.95, blur: 130, yaw: 1, pitch: 1, facePx: 240 },
+    });
+
+    await submitEnrollment(draft, { client, prepareCapture, persist: async () => undefined });
+
+    expect(client.addEmbedding).toHaveBeenCalledOnce();
+    expect(client.addEmbedding.mock.calls[0]?.[1]).toMatchObject({ media_id: 'media-frontal' });
+  });
+
+  it('still stops on an AMBIGUOUS media failure, which retrying could duplicate', async () => {
+    const client = transport();
+    client.presignMedia.mockRejectedValueOnce(new Error('socket hang up'));
+    const result = await submitEnrollment(completeDraft(), { client, prepareCapture, persist: async () => undefined });
+    expect(result.status).toBe('needs_recovery');
+    expect(client.addEmbedding).not.toHaveBeenCalled();
   });
 
   it('links cases and creates relationships when present in draft', async () => {

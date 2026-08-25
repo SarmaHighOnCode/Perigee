@@ -70,7 +70,7 @@ describe('Perigee Enroll commands', () => {
   it('preserves object-storage unavailable as a structured retryable boundary', async () => {
     const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(json({
       error: {
-        code: 'OBJECT_STORAGE_UNAVAILABLE', message: 'Object storage is not configured',
+        code: 'STORAGE_UNAVAILABLE', message: 'Object storage is not configured',
         request_id: 'server-1',
       },
     }, 503));
@@ -82,7 +82,10 @@ describe('Perigee Enroll commands', () => {
       capture_angle: 'left', content_type: 'image/jpeg', is_primary: false,
     }).catch((caught: unknown) => caught);
     expect(error).toBeInstanceOf(PerigeeApiError);
-    expect(error).toMatchObject({ status: 503, code: 'OBJECT_STORAGE_UNAVAILABLE', requestId: 'server-1' });
+    // STORAGE_UNAVAILABLE is what app/errors.py emits. The fabricated
+    // OBJECT_STORAGE_UNAVAILABLE used here before matched no server response,
+    // so enroll's handler for it was dead code that never ran in production.
+    expect(error).toMatchObject({ status: 503, code: 'STORAGE_UNAVAILABLE', requestId: 'server-1' });
   });
 
   it('supports listCases, linkCase, and createRelationship contracts', async () => {

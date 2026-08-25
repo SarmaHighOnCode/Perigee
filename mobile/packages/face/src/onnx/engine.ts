@@ -178,10 +178,33 @@ export class OnnxFaceEngine implements FaceEngine {
 
     if (!sessionFactory) {
       const ort = await import('onnxruntime-react-native');
-      sessionFactory = (path, opts) =>
-        ort.InferenceSession.create(path, {
+      sessionFactory = async (path, opts) => {
+        const session = await ort.InferenceSession.create(path, {
           executionProviders: (opts?.executionProviders ?? ['cpu']) as readonly ['cpu'],
-        }) as unknown as Promise<InferenceSessionLike>;
+        });
+        // The engine's InferenceSessionLike contract exchanges plain
+        // {data, dims} values; the native ORT bridge only accepts real Tensor
+        // instances ("Invalid tensor object: missing cpuData, dims, or type"),
+        // so wrap feeds and unwrap outputs here.
+        return {
+          run: async (feeds) => {
+            const wrappedFeeds: Record<string, InstanceType<typeof ort.Tensor>> = {};
+            for (const [name, value] of Object.entries(feeds)) {
+              const float32 = value.data instanceof Float32Array
+                ? value.data
+                : Float32Array.from(value.data);
+              wrappedFeeds[name] = new ort.Tensor('float32', float32, [...value.dims]);
+            }
+            const outputs = await session.run(wrappedFeeds);
+            const unwrapped: Record<string, TensorValue> = {};
+            for (const [name, tensor] of Object.entries(outputs)) {
+              unwrapped[name] = { data: tensor.data as Float32Array, dims: tensor.dims };
+            }
+            return unwrapped;
+          },
+          release: () => session.release(),
+        };
+      };
     }
 
     let detectorPath = this.options.detectorPath;

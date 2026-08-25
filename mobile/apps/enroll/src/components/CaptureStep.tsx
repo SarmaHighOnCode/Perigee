@@ -79,6 +79,7 @@ export function CaptureStep({ angle, nextHref }: { angle: RequiredCaptureAngle; 
 
   function storeMedia(media: ReturnType<typeof normalizeMedia>) {
     if (!draft) return;
+    setError(null);
     saveDraft(setCapture(draft, {
       angle,
       uri: media.uri,

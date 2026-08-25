@@ -263,11 +263,17 @@ export function CameraStage({
           enableNativeTapToFocusGesture={descriptor.supportsFocus}
           exposure={guarded.exposure}
           isActive={isCameraActive(appState)}
-          onError={(error) => onError(
-            /not active/i.test(error.message)
-              ? 'Camera is still starting. Wait a moment and take the photo again.'
-              : error.message,
-          )}
+          onError={(error) => {
+            // CameraX emits a spurious "not active" error while the session
+            // is still resuming even though capture works; the status overlay
+            // already communicates that state.
+            if (/not active/i.test(error.message) && (!sessionRunning || !previewRunning)) return;
+            onError(
+              /not active/i.test(error.message)
+                ? 'Camera is still starting. Wait a moment and take the photo again.'
+                : error.message,
+            );
+          }}
           onPreviewStarted={() => {
             setPreviewRunning(true);
             onCameraReady?.(performance.now() - cameraStartedAt.current);

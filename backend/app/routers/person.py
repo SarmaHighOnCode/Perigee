@@ -285,8 +285,10 @@ async def create_media_direct(
     import hashlib
 
     try:
+        # binascii.Error (the decoder's actual exception) subclasses
+        # ValueError, so catching ValueError alone is exhaustive.
         image_bytes = base64.b64decode(payload.image_base64, validate=True)
-    except (ValueError, base64.binascii.Error) as exc:
+    except ValueError as exc:
         raise MalformedRequest("image_base64 is not valid base64") from exc
 
     if not image_bytes:

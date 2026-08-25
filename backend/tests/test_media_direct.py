@@ -110,7 +110,8 @@ async def test_the_mugshot_comes_back_as_a_data_uri_on_person_detail(api, clean_
 async def test_search_candidates_carry_the_mugshot_too(api, clean_db):
     """The regression this exists for: a mugshot saved via Enroll must show
     up on Field's results screen, not just on the person-detail page."""
-    from tests.conftest import MODEL_ID, encode_vector, unit_vector
+    from app.db import encode_vector
+    from tests.conftest import MODEL_ID, unit_vector
 
     async with clean_db.acquire() as conn:
         person_id = await _person(conn, "Findable Person")

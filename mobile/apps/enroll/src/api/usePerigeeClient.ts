@@ -9,5 +9,7 @@ export function usePerigeeClient() {
   const operatorId = useEnrollStore((state) => state.operatorId);
   return useMemo(() => createPerigeeClient({
     baseUrl: apiUrl, deviceKey, officerId: operatorId || 'UNATTRIBUTED-ENROLL',
+    // Serverless cold starts can exceed the 15 s default on write paths.
+    timeoutMs: 30_000,
   }), [apiUrl, deviceKey, operatorId]);
 }

@@ -22,6 +22,7 @@ export * from './onnx/signals';
 export * from './onnx/tensor';
 export * from './onnx/aggregate';
 export * from './onnx/engine';
+export * from './onnx/preload';
 export * from './onnx/runtime-diagnostics';
 export * from './native/decodeImage';
 export * from './native/createFaceEngine';

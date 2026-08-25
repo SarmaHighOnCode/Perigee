@@ -10,6 +10,7 @@ import {
   type EnrollmentDraft,
   type MediaSubmissionCheckpoint,
   type RequiredCaptureAngle,
+  type SubmissionOutcome,
 } from '../domain/draft';
 import { reviewReadiness } from '../domain/validation';
 
@@ -20,6 +21,11 @@ export interface PreparedCapture {
   width: number | null;
   height: number | null;
   exifStripped: true;
+}
+
+export interface SubmitOptions {
+  /** Retry after an unknown person-creation outcome. May create a duplicate person. */
+  forceAfterUnknown?: boolean;
 }
 
 export interface EnrollmentTransport extends Pick<
@@ -37,6 +43,8 @@ export interface SubmitResult {
   status: 'complete' | 'partial' | 'blocked' | 'needs_recovery';
   draft: EnrollmentDraft;
   message?: string;
+  /** True when a forced retry could unblock a `needs_recovery` result. */
+  canForceRetry?: boolean;
 }
 
 function errorMessage(error: unknown): string {
@@ -80,19 +88,35 @@ function withMedia(
 export async function submitEnrollment(
   initialDraft: EnrollmentDraft,
   deps: SubmitDependencies,
+  options: SubmitOptions = {},
 ): Promise<SubmitResult> {
   const readiness = reviewReadiness(initialDraft);
   if (!readiness.ready) {
     return { status: 'blocked', draft: initialDraft, message: readiness.issues.join('. ') };
   }
 
+  const outcome: SubmissionOutcome = {
+    finishedAt: '',
+    embeddings: 0,
+    embeddingErrors: [],
+    casesLinked: 0,
+    caseErrors: [],
+    relationshipsCreated: 0,
+    relationshipErrors: [],
+  };
+
   let draft = initialDraft;
-  if (draft.submission.person.status === 'unknown' || draft.submission.person.status === 'creating') {
-    return {
-      status: 'needs_recovery',
-      draft,
-      message: 'Person creation may have reached the server. Resolve by record ID before retrying.',
-    };
+  const personStatus = draft.submission.person.status;
+  if (personStatus === 'unknown' || personStatus === 'creating') {
+    if (!options.forceAfterUnknown) {
+      return {
+        status: 'needs_recovery',
+        draft,
+        canForceRetry: true,
+        message: 'A previous attempt may have created this person on the server. Retry to submit anyway (risking a duplicate), or start a fresh enrollment.',
+      };
+    }
+    draft = await checkpoint(draft, deps, (current) => withPerson(current, { status: 'idle' }));
   }
 
   let personId = draft.submission.person.personId;
@@ -111,6 +135,7 @@ export async function submitEnrollment(
       return {
         status: 'needs_recovery',
         draft,
+        canForceRetry: true,
         message: 'Person creation outcome is unknown; automatic retry is disabled to prevent duplicates.',
       };
     }
@@ -204,8 +229,9 @@ export async function submitEnrollment(
             ...(capture.quality?.pitch !== undefined ? { pitch: capture.quality.pitch } : {}),
             ...(media.mediaId ? { media_id: media.mediaId } : {}),
           });
-        } catch {
-          // Embedding write attempt finished; proceed to next steps
+          outcome.embeddings += 1;
+        } catch (error) {
+          outcome.embeddingErrors.push(`${angle}: ${errorMessage(error)}`);
         }
       }
     } catch (error) {
@@ -221,8 +247,9 @@ export async function submitEnrollment(
         case_id: caseLink.caseId,
         role: caseLink.role,
       });
-    } catch {
-      // Continue linking cases
+      outcome.casesLinked += 1;
+    } catch (error) {
+      outcome.caseErrors.push(`${caseLink.caseId}: ${errorMessage(error)}`);
     }
   }
 
@@ -233,9 +260,29 @@ export async function submitEnrollment(
         edge_type: rel.relationshipType as any,
         evidence_case_ids: rel.evidenceCaseIds,
       });
-    } catch {
-      // Continue recording relationships
+      outcome.relationshipsCreated += 1;
+    } catch (error) {
+      outcome.relationshipErrors.push(`${rel.targetPersonId}: ${errorMessage(error)}`);
     }
+  }
+
+  const failures = [
+    ...outcome.embeddingErrors,
+    ...outcome.caseErrors,
+    ...outcome.relationshipErrors,
+  ];
+  outcome.finishedAt = new Date().toISOString();
+  draft = await checkpoint(draft, deps, (current) => setSubmission(current, {
+    ...current.submission,
+    outcome,
+  }));
+
+  if (failures.length > 0) {
+    return {
+      status: 'partial',
+      draft,
+      message: `Person and media committed with ${failures.length} issue(s): ${failures.join(' · ')}`,
+    };
   }
 
   return { status: 'complete', draft };

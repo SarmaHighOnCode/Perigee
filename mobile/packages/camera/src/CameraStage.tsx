@@ -155,40 +155,52 @@ export function CameraStage({
     if (!captureAvailable || !descriptor) return;
     setCapturing(true);
     const startedAt = performance.now();
-    try {
-      const photo = await photoOutput.capturePhoto(
-        {
-          flashMode: guarded.flash,
-          enableDistortionCorrection: device?.supportsDistortionCorrection ?? false,
-          enableVirtualDeviceFusion: true,
-          enableRedEyeReduction: true,
-          enableShutterSound: true,
-        },
-        {},
-      );
+    // CameraX occasionally rejects capturePhoto while the session is still
+    // resuming ("Camera is not active."). One short retry absorbs that race.
+    for (let attempt = 0; ; attempt += 1) {
       try {
-        const filePath = await photo.saveToTemporaryFileAsync();
-        const preliminary = normalizeMedia({
-          uri: filePath,
-          width: photo.width,
-          height: photo.height,
-          mimeType: `image/${photo.containerFormat}`,
-          source: 'camera',
-          acquiredAt: new Date().toISOString(),
-        });
-        const media = normalizeMedia({
-          ...preliminary,
-          bytes: new File(preliminary.uri).info().size ?? null,
-        });
-        onCapture({ media, latencyMs: performance.now() - startedAt });
-      } finally {
-        photo.dispose();
+        const photo = await photoOutput.capturePhoto(
+          {
+            flashMode: guarded.flash,
+            enableDistortionCorrection: device?.supportsDistortionCorrection ?? false,
+            enableVirtualDeviceFusion: true,
+            enableRedEyeReduction: true,
+            enableShutterSound: true,
+          },
+          {},
+        );
+        try {
+          const filePath = await photo.saveToTemporaryFileAsync();
+          const preliminary = normalizeMedia({
+            uri: filePath,
+            width: photo.width,
+            height: photo.height,
+            mimeType: `image/${photo.containerFormat}`,
+            source: 'camera',
+            acquiredAt: new Date().toISOString(),
+          });
+          const media = normalizeMedia({
+            ...preliminary,
+            bytes: new File(preliminary.uri).info().size ?? null,
+          });
+          onCapture({ media, latencyMs: performance.now() - startedAt });
+        } finally {
+          photo.dispose();
+        }
+        break;
+      } catch (error) {
+        const raw = error instanceof Error ? error.message : String(error);
+        if (attempt < 1 && /not active/i.test(raw)) {
+          await new Promise((resolve) => setTimeout(resolve, 800));
+          continue;
+        }
+        onError(/not active/i.test(raw)
+          ? 'Camera is still starting. Wait a moment and take the photo again.'
+          : raw);
+        break;
       }
-    } catch (error) {
-      onError(error instanceof Error ? error.message : String(error));
-    } finally {
-      setCapturing(false);
     }
+    setCapturing(false);
   }
 
   if (!permission.hasPermission) {
@@ -251,7 +263,11 @@ export function CameraStage({
           enableNativeTapToFocusGesture={descriptor.supportsFocus}
           exposure={guarded.exposure}
           isActive={isCameraActive(appState)}
-          onError={(error) => onError(error.message)}
+          onError={(error) => onError(
+            /not active/i.test(error.message)
+              ? 'Camera is still starting. Wait a moment and take the photo again.'
+              : error.message,
+          )}
           onPreviewStarted={() => {
             setPreviewRunning(true);
             onCameraReady?.(performance.now() - cameraStartedAt.current);

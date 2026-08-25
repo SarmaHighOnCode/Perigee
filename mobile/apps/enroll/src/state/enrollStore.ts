@@ -35,8 +35,8 @@ function localId(prefix: string): string {
 export const useEnrollStore = create<EnrollState>()(persist(
   (set, get) => ({
     operatorId: '',
-    apiUrl: 'http://10.0.2.2:8000',
-    deviceKey: '',
+    apiUrl: process.env.EXPO_PUBLIC_API_URL ?? 'http://10.0.2.2:8000',
+    deviceKey: process.env.EXPO_PUBLIC_DEVICE_KEY ?? '',
     drafts: {},
     activeDraftId: null,
     activities: [],

@@ -49,6 +49,12 @@ export interface OnnxFaceEngineOptions {
   clock?: () => number;
   qualityFloor?: number;
   executionProviders?: readonly string[];
+  /**
+   * 'reject-multiple' (default) throws MULTIPLE_FACES when several faces are
+   * detected. 'largest' keeps the dominant (largest) face instead — used by
+   * enrollment, where bystanders at the frame edge must not block the capture.
+   */
+  faceSelector?: 'reject-multiple' | 'largest';
 }
 
 export interface LetterboxedImage {
@@ -56,6 +62,19 @@ export interface LetterboxedImage {
   width: number;
   height: number;
   detScale: number;
+}
+
+function pickDominantFace(detections: readonly FaceDetection[]): FaceDetection {
+  let dominant = detections[0]!;
+  let dominantArea = (dominant.x2 - dominant.x1) * (dominant.y2 - dominant.y1);
+  for (const candidate of detections) {
+    const area = (candidate.x2 - candidate.x1) * (candidate.y2 - candidate.y1);
+    if (area > dominantArea) {
+      dominant = candidate;
+      dominantArea = area;
+    }
+  }
+  return dominant;
 }
 
 const DETECTOR_SIZE = 640;
@@ -280,14 +299,14 @@ export class OnnxFaceEngine implements FaceEngine {
     if (detections.length === 0) {
       throw new FaceEngineError('NO_FACE', 'No face detected in frame');
     }
-    if (detections.length > 1) {
+    if (detections.length > 1 && this.options.faceSelector !== 'largest') {
       throw new FaceEngineError(
         'MULTIPLE_FACES',
         `Multiple faces (${detections.length}) detected in frame`,
       );
     }
 
-    const face = detections[0]!;
+    const face = pickDominantFace(detections);
     const transform = estimateSimilarityTransform(face.landmarks, ARCFACE_TEMPLATE);
     const alignedRgba = warpRgba(
       decoded.rgba,

@@ -10,6 +10,7 @@ import { ChoiceGrid } from '../../src/components/ChoiceGrid';
 import { FormField } from '../../src/components/FormField';
 import { WizardProgress } from '../../src/components/WizardProgress';
 import { addCaseLink, removeCaseLink, type CaseRole } from '../../src/domain/draft';
+import { shortError } from '../../src/services/shortError';
 import { activeDraft, useEnrollStore } from '../../src/state/enrollStore';
 
 const roles: CaseRole[] = ['accused', 'convicted', 'suspect', 'victim', 'witness', 'complainant'];
@@ -39,7 +40,7 @@ export default function CasesScreen() {
     } catch (caught) {
       setResults([]);
       setSearched(true);
-      setError(caught instanceof Error ? caught.message : String(caught));
+      setError(shortError(caught));
     } finally {
       setSearching(false);
     }

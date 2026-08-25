@@ -9,6 +9,7 @@ import { WizardProgress } from '../../src/components/WizardProgress';
 import { requiredCaptureAngles } from '../../src/domain/draft';
 import { reviewReadiness } from '../../src/domain/validation';
 import { submitEnrollment } from '../../src/services/submitEnrollment';
+import { shortError } from '../../src/services/shortError';
 import { prepareCaptureForUpload } from '../../src/services/uploadMedia';
 import { activeDraft, useEnrollStore } from '../../src/state/enrollStore';
 
@@ -52,7 +53,7 @@ export default function ReviewScreen() {
       });
       if (result.status === 'complete' || result.status === 'partial') router.replace('/enroll/receipt');
     } catch (caught) {
-      setMessage(caught instanceof Error ? caught.message : String(caught));
+      setMessage(shortError(caught));
       setStatus('alert');
     } finally {
       setWorking(false);

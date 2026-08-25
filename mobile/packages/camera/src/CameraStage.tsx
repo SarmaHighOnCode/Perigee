@@ -263,7 +263,11 @@ export function CameraStage({
           enableNativeTapToFocusGesture={descriptor.supportsFocus}
           exposure={guarded.exposure}
           isActive={isCameraActive(appState)}
-          onError={(error) => onError(error.message)}
+          onError={(error) => onError(
+            /not active/i.test(error.message)
+              ? 'Camera is still starting. Wait a moment and take the photo again.'
+              : error.message,
+          )}
           onPreviewStarted={() => {
             setPreviewRunning(true);
             onCameraReady?.(performance.now() - cameraStartedAt.current);

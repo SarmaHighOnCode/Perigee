@@ -10,6 +10,7 @@ import { setCapture, type EnrollmentCapture, type RequiredCaptureAngle } from '.
 import { activeDraft, useEnrollStore } from '../state/enrollStore';
 import { getFaceEngine } from '../services/faceEngine';
 import { embedCapture } from '../services/embedCapture';
+import { shortError } from '../services/shortError';
 import { useModelPreload } from '../services/modelPreload';
 import { ModelPrepCard } from './ModelPrepCard';
 import { WizardProgress } from './WizardProgress';
@@ -67,9 +68,10 @@ export function CaptureStep({ angle, nextHref }: { angle: RequiredCaptureAngle; 
       })
       .catch((caught) => {
         if (cancelled) return;
+        console.error('Embedding failed', caught);
         setEmbed({
           phase: 'failed',
-          error: caught instanceof Error ? caught.message : String(caught),
+          error: shortError(caught),
         });
       });
     return () => { cancelled = true; };
@@ -102,7 +104,7 @@ export function CaptureStep({ angle, nextHref }: { angle: RequiredCaptureAngle; 
         source: 'gallery', acquiredAt: new Date().toISOString(),
       }));
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : String(caught));
+      setError(shortError(caught));
     }
   }
 
@@ -130,7 +132,11 @@ export function CaptureStep({ angle, nextHref }: { angle: RequiredCaptureAngle; 
       <Card eyebrow="Pose guide" title={label.step} tone="data">
         <Text style={styles.copy}>{label.cue}</Text>
       </Card>
-      <CameraStage compact onCapture={({ media }) => storeMedia(media)} onError={setError} />
+      <CameraStage
+        compact
+        onCapture={({ media }) => storeMedia(media)}
+        onError={(message) => setError(shortError(message))}
+      />
       <Button label="IMPORT ORIGINAL FROM GALLERY" onPress={() => void importOriginal()} tone="data" />
       {current ? (
         <Card

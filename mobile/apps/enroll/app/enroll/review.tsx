@@ -42,7 +42,12 @@ export default function ReviewScreen() {
         persist: async (next) => saveDraft(next),
       }, { forceAfterUnknown });
       saveDraft(result.draft);
-      setMessage(result.message ?? (result.status === 'complete' ? 'Person, media, embedding and annotations all committed.' : result.status));
+      // Without the underlying failure the operator only sees "outcome is
+      // unknown", which is the same text for a timeout, a rejected payload and
+      // a dead network - and nothing to act on.
+      const cause = result.draft.submission.person.error;
+      const summary = result.message ?? (result.status === 'complete' ? 'Person, media, embedding and annotations all committed.' : result.status);
+      setMessage(cause && result.status !== 'complete' ? `${summary} — ${cause}` : summary);
       setStatus(result.status === 'complete' ? 'clear' : result.status === 'partial' ? 'warn' : 'alert');
       setCanForceRetry(Boolean(result.canForceRetry));
       addActivity({

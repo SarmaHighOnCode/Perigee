@@ -82,6 +82,7 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.8,
+    transform: [{ translateX: 2 }, { translateY: 2 }],
   },
   ghost: { borderWidth: 0, backgroundColor: 'transparent' },
   label: {

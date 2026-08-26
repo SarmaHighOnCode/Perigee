@@ -28,13 +28,16 @@ That is the point: this is as much a tool for *clearing* people as for identifyi
 | Path | Status |
 | --- | --- |
 | [`docs/`](docs/) | Architecture and specification — the contract everything is built against |
-| [`backend/`](backend/) | **Perigee Core** — FastAPI + pgvector. Search, decisions, audit chain, graph. Fixture embeddings; no face recognition yet. |
+| [`backend/`](backend/) | **Perigee Core** — FastAPI + pgvector. Search, decisions, audit chain, graph. Deployed on Vercel. |
+| [`mobile/`](mobile/) | **Perigee Field** + **Perigee Enroll** — Expo monorepo. On-device SCRFD + ArcFace face pipeline, camera, ONNX Runtime. |
+| [`web/`](web/) | **Perigee Web** — Next.js marketing site and live graph demo, deployed on Vercel. |
 | [`testing/testcamera/`](testing/testcamera/) | Expo camera proof-of-concept — VisionCamera 5, Android CameraX, local release builds |
 
-> **Face recognition is deliberately on hold.** The backend takes a real
-> `embedding: number[512]` contract and development uses deterministic synthetic fixture vectors, so
-> the on-device SCRFD + ArcFace package drops in later without a backend change. Fixture results are
-> connectivity fixtures, never recognition results.
+> **Face recognition runs on-device today.** SCRFD detects the face, ArcFace (`w600k_r50`) produces
+> the 512-d embedding, and both apps submit it through the same `embedding: number[512]` contract the
+> backend has always taken. Models are pinned, SHA-256-verified, and mirrored from the official
+> InsightFace v0.7 release. `DATASET_MODE=synthetic` still governs every record in the database —
+> the *pipeline* is real, the *population* it searches is not.
 
 | Document | What it covers |
 | --- | --- |
@@ -68,12 +71,12 @@ graph TB
     end
 
     subgraph Core["☁️ CORE — stateless, no ML, tiny"]
-        API["<b>Perigee Core</b><br/>FastAPI · Render free tier<br/>512 MB · zero ML dependencies"]
+        API["<b>Perigee Core</b><br/>FastAPI · Vercel (Python runtime)<br/>zero ML dependencies"]
     end
 
     subgraph Data["🗄️ DATA"]
-        PG[("<b>Neon Postgres 17</b><br/>pgvector HNSW<br/>audit hash chain")]
-        R2[("<b>Cloudflare R2</b><br/>mugshots<br/>presigned, 120 s TTL")]
+        PG[("<b>Neon Postgres 17</b><br/>pgvector HNSW · audit hash chain<br/>mugshot bytes when R2 is unset")]
+        R2[("<b>Cloudflare R2</b><br/>mugshots, when configured<br/>presigned, 120 s TTL")]
     end
 
     subgraph Public["🌐 PUBLIC"]
@@ -107,12 +110,12 @@ connection.
 | Mobile | Expo SDK 54+ · React Native 0.81+ · New Architecture | One monorepo, two app targets, OTA updates |
 | On-device ML | ONNX Runtime React Native · SCRFD + ArcFace | 512-d embeddings computed locally |
 | Motion | Reanimated 4 · Moti · Gesture Handler · Skia | The GSAP-equivalent stack for RN |
-| Backend | Python 3.13 · FastAPI · Pydantic v2 · asyncpg | Native runtime, no Docker, fits Render free |
+| Backend | Python 3.13 · FastAPI · Pydantic v2 · asyncpg | Native runtime, no Docker, zero ML deps |
 | Database | Neon Postgres 17 + pgvector 0.8 (HNSW / halfvec) | Vectors, relations, and graph in one transaction |
-| Object store | Cloudflare R2 | 10 GB free, zero egress fees |
+| Object store | Cloudflare R2, optional — Postgres `bytea` fallback | Mugshots work with zero external accounts to provision |
 | Web | Next.js 16 App Router · Tailwind v4 | Vercel Hobby, ISR, edge-fast |
 | Design | Neobrutalism × cyberpunk, shared token package | High contrast is an *operational* advantage in daylight |
-| Hosting | Render + Neon + R2 + Vercel + EAS | **₹0 / $0 per month** |
+| Hosting | Vercel (API + web) + Neon + EAS | **₹0 / $0 per month** |
 
 ---
 

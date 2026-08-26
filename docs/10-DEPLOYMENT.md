@@ -2,36 +2,46 @@
 
 Every component, on a free tier, at **₹0/month**. Written so it can be followed top to bottom.
 
+> **Updated 2026-08-26.** This runbook originally targeted Render. The team deployed straight to
+> Vercel instead once it came time to stand up a real backend — see
+> [ADR-0006](ADR/0006-vercel-python-functions.md) for why, and
+> [ADR-0004](ADR/0004-render-native-python.md) (now superseded) for the Render plan this replaced.
+> Everything below describes the system as actually deployed.
+
 ---
 
 ## 1. Topology
 
 ```mermaid
 graph LR
-    subgraph SG["🌏 ap-southeast-1 (Singapore) — colocated"]
-        RENDER["<b>Render</b> free web service<br/>FastAPI · native Python 3.13<br/>512 MB · 0.1 CPU"]
+    subgraph SG["🌏 sin1 (Singapore) — colocated with Neon"]
+        API["<b>perigee-core</b><br/>Vercel · FastAPI on @vercel/python<br/>Fluid Compute"]
         NEON[("<b>Neon</b> free<br/>Postgres 17 + pgvector<br/>0.5 GB · scale-to-zero")]
     end
 
-    VERCEL["<b>Vercel</b> Hobby<br/>Next.js 16 · global edge"]
-    R2[("<b>Cloudflare R2</b><br/>10 GB · zero egress")]
+    WEB["<b>perigee-web</b><br/>Vercel Hobby<br/>Next.js 16 · global edge"]
+    R2[("<b>Cloudflare R2</b><br/>optional, unconfigured<br/>10 GB · zero egress")]
     EAS["<b>Expo EAS</b><br/>30 builds/mo"]
     GH["<b>GitHub</b><br/>Actions + Releases"]
 
-    VERCEL -->|"allowlisted proxy"| RENDER
-    RENDER --> NEON
-    RENDER -->|presign only| R2
+    WEB -->|"fetch, server-side"| API
+    API --> NEON
+    API -.->|"presign, if configured"| R2
+    NEON -.->|"mugshot bytea fallback<br/>when R2 is unset"| API
     EAS --> GH
-    GH -->|APK| VERCEL
+    GH -->|APK| WEB
 
-    style RENDER fill:#00C2CB,stroke:#0A0A0A,stroke-width:3px,color:#0A0A0A
+    style API fill:#00C2CB,stroke:#0A0A0A,stroke-width:3px,color:#0A0A0A
     style NEON fill:#00C853,stroke:#0A0A0A,stroke-width:3px,color:#0A0A0A
-    style VERCEL fill:#FFE600,stroke:#0A0A0A,stroke-width:3px,color:#0A0A0A
+    style WEB fill:#FFE600,stroke:#0A0A0A,stroke-width:3px,color:#0A0A0A
 ```
 
-**Render and Neon must be in the same region.** Singapore is the closest Render region to India and
-Neon offers `ap-southeast-1`. Getting this wrong adds ~200 ms to every query — which, against a
-390 ms total budget, is the difference between snappy and sluggish.
+**`perigee-core` and Neon must be in the same region.** `sin1` (Singapore) is Vercel's closest region
+to India and Neon offers `ap-southeast-1`. Getting this wrong adds ~200 ms to every query — which,
+against a 390 ms total budget, is the difference between snappy and sluggish.
+
+`perigee-core` and `perigee-web` are two separate Vercel projects sharing this monorepo — not one
+merged deploy — each with its own git-triggered auto-deploy on push to `main`.
 
 ---
 
@@ -41,15 +51,14 @@ Know these before building, not during the demo.
 
 | Service | Gives | Costs you |
 | --- | --- | --- |
-| **Render free** | 512 MB, 0.1 CPU, 750 h/mo, TLS, auto-deploy | **Spins down after 15 min idle; ~50 s cold start** |
+| **Vercel Hobby** | Fluid Compute functions, 100 GB bandwidth, TLS, auto-deploy, both projects | Non-commercial only; a real but much smaller cold start than Render's |
 | **Neon free** | 0.5 GB, 100 CU-h/mo, 10 branches, pgvector | Scale-to-zero (~500 ms resume — fine) |
-| **Cloudflare R2** | 10 GB, 1 M Class-A ops, **zero egress** | Card required at signup |
-| **Vercel Hobby** | 100 GB bandwidth, unlimited static | Non-commercial only |
+| **Cloudflare R2** | 10 GB, 1 M Class-A ops, **zero egress** — not currently provisioned | Card required at signup; mugshots use a Postgres fallback instead |
 | **Expo EAS** | 30 builds/mo (≤15 iOS), OTA to 1,000 MAU | Queue times vary |
 | **GitHub** | 2,000 Actions min/mo, unlimited releases | — |
 
-**The 50-second cold start is the only genuine threat to a live demo.** Mitigations in §5, applied in
-layers.
+**The Render-era 50-second cold start does not apply here.** Fluid Compute keeps instances warm
+across concurrent requests, so §5 below is short.
 
 ---
 
@@ -73,9 +82,9 @@ python scripts/seed_synthetic.py --persons 500 --cases 300 --edges 1200
 python scripts/compute_node_metrics.py
 ```
 
-**Use the pooled connection string** (`-pooler` in the host). Render free has one small instance, but
-Neon's connection limits on the free tier are tight and a direct connection will exhaust them under
-even light concurrency.
+**Use the pooled connection string** (`-pooler` in the host). Vercel Functions can run as several
+concurrent instances, each opening its own asyncpg pool, and Neon's connection limits on the free
+tier are tight — a direct (non-pooled) connection string will exhaust them fast.
 
 ```
 postgresql://user:pass@ep-xxx-pooler.ap-southeast-1.aws.neon.tech/perigee?sslmode=require
@@ -110,67 +119,33 @@ binding constraint — well past anything a hackathon needs.
 
 ---
 
-## 4. API — Render, native Python
+## 4. API — Vercel, Python runtime
 
-> **Currently deployed to Vercel instead**, at `https://perigee-core.vercel.app`
-> (`backend/vercel.json`, entrypoint `backend/api/index.py`). Render remains the
-> designed target and `render.yaml` is still correct and current.
->
-> The one thing that had to change to make a serverless host safe is the rate
-> limiter. In-process buckets are correct only where there is exactly one
-> process; Vercel runs as many instances as it likes, so each would keep its own
-> counters and every configured limit would be multiplied by the instance count.
-> `RATE_LIMIT_BACKEND=postgres` moves the buckets into the database
-> (migration `0009_rate_bucket`), and `app/main.py` **raises at startup** if that
-> variable is set without a database, so the unsafe combination cannot happen
-> quietly. Render should keep `RATE_LIMIT_BACKEND=memory` — one worker, no round
-> trip.
->
-> Known trade-offs on Vercel versus Render: a cold start builds a fresh asyncpg
-> pool per instance, and `pyproject.toml` is excluded via `.vercelignore` so the
-> builder installs from `requirements.txt` (that `[project]` table declares no
-> dependencies, and a second list would drift from the first).
+Deployed at `https://perigee-core.vercel.app`. `backend/vercel.json` is the entire deploy
+configuration — infrastructure in the repo beats clicking through a dashboard:
 
-**No Docker**, per requirement. Render's native Python runtime.
-
-`render.yaml` (Blueprint — commit it; infrastructure in the repo beats clicking through a dashboard):
-
-```yaml
-services:
-  - type: web
-    name: perigee-core
-    runtime: python
-    plan: free
-    region: singapore
-    branch: main
-    buildCommand: pip install --no-cache-dir -r requirements.txt
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1
-    healthCheckPath: /healthz
-    autoDeploy: true
-    envVars:
-      - key: PYTHON_VERSION
-        value: "3.13.0"
-      - key: DATASET_MODE
-        value: synthetic
-      - key: ENABLE_SERVER_EMBED
-        value: "false"          # ArcFace does not fit in 512 MB
-      - key: DATABASE_URL
-        sync: false             # set in the dashboard, never in git
-      - key: R2_ACCOUNT_ID
-        sync: false
-      - key: R2_ACCESS_KEY_ID
-        sync: false
-      - key: R2_SECRET_ACCESS_KEY
-        sync: false
-      - key: DEVICE_KEY_PEPPER
-        sync: false
-      - key: CORS_ORIGINS
-        value: https://perigee.vercel.app
+```json
+{
+  "regions": ["sin1"],
+  "builds": [{ "src": "api/index.py", "use": "@vercel/python" }],
+  "routes": [{ "src": "/(.*)", "dest": "api/index.py" }]
+}
 ```
 
-**`--workers 1` is deliberate.** 512 MB does not hold two uvicorn workers plus an asyncpg pool. One
-worker with async I/O handles far more concurrency than this demo will ever see, and multiple
-workers would also break the in-process rate limiter.
+`backend/api/index.py` is the ASGI entrypoint `@vercel/python` looks for; it imports and re-exports
+`app` from `app.main`. No Dockerfile, no image registry — same "no Docker" constraint the original
+plan had, met a different way.
+
+**The one thing that had to change to make a serverless host safe is the rate limiter.** In-process
+buckets are correct only where there is exactly one process; Vercel runs as many concurrent instances
+as demand requires, so each would keep its own counters and every configured limit would be silently
+multiplied by the instance count. `RATE_LIMIT_BACKEND=postgres` moves the buckets into the database
+(migration `0009_rate_bucket`), and `app/main.py` **raises at startup** if that variable is set
+without a reachable database, so the unsafe combination cannot happen quietly.
+
+**`pyproject.toml` is excluded via `.vercelignore`**, so the builder installs from
+`requirements.txt` instead. That `[project]` table declares no dependencies of its own — a second
+list would only drift from the first.
 
 ### `requirements.txt` — pinned, and deliberately small
 
@@ -186,8 +161,9 @@ python-json-logger==2.0.*
 ```
 
 **No `onnxruntime`, no `numpy`, no `opencv`.** That absence is the on-device decision paying off:
-build time under 40 s, memory footprint ~120 MB, and comfortable headroom in 512 MB. A backend
-carrying ArcFace would need ~700 MB and would simply not run here.
+build time under 40 s and a memory footprint of roughly 120 MB. A backend carrying ArcFace would need
+~700 MB — the original reason this had to stay tiny even under Render's tighter 512 MB ceiling, and
+still the reason it starts up fast and cheap here.
 
 ### Memory budget
 
@@ -198,7 +174,7 @@ asyncpg pool (5 conns)       ~15 MB
 boto3                        ~20 MB
 application                   ~5 MB
 ──────────────────────────────────
-                            ~120 MB of 512 MB   ✅ 4× headroom
+                            ~120 MB total
 ```
 
 ### Migrations on deploy
@@ -229,72 +205,41 @@ async def apply_migrations(pool):
 
 ---
 
-## 5. The cold-start problem
+## 5. Cold starts
 
-Render free spins down after 15 minutes idle. The next request waits ~50 s. Four layers, cheapest
-first:
+Fluid Compute keeps warm instances around across concurrent requests, so the elaborate Render-era
+mitigation strategy this section used to describe — a pre-warm ping, a calibrated "SYSTEM WAKING"
+progress bar, a 10-minute keepalive Action, a manual T-15m warm-up — is no longer load-bearing. What
+remains is a real but much smaller cold start on a fresh instance: an asyncpg pool has to spin up,
+same as any first request against a scale-to-zero Neon branch.
 
-### Layer 1 — the app pre-warms
-
-Fire `GET /healthz` on launch, before the officer has typed anything. By the time they reach the
-camera, the instance is warm. Costs nothing and handles the common case.
-
-### Layer 2 — honest UI
-
-If a request exceeds 3 s, the app shows `SYSTEM WAKING` with a determinate progress bar calibrated to
-~50 s — **not a spinner**. A spinner says "something is wrong"; a labelled progress bar says "this is
-expected and will finish". Same wait, entirely different perception.
-
-### Layer 3 — keepalive during demo windows
-
-```yaml
-# .github/workflows/keepalive.yml
-name: keepalive
-on:
-  schedule:
-    - cron: '*/10 * * * *'     # every 10 min
-  workflow_dispatch:
-jobs:
-  ping:
-    runs-on: ubuntu-latest
-    steps:
-      - run: curl -sf https://perigee-core.onrender.com/healthz || exit 1
-```
-
-~4,300 runs/month against a 2,000-minute budget — each run is a few seconds, so it fits comfortably.
-
-> **Enable this only during the hackathon window and disable it afterwards.** Keeping a free instance
-> permanently awake is against the spirit of the tier. It is a demo-window measure, not a
-> deployment strategy, and pretending otherwise in front of judges would be a bad look.
-
-### Layer 4 — the manual pre-flight
-
-Fifteen minutes before presenting, hit the API and run one real search. Warms Render, wakes Neon,
-primes the connection pool, and populates the HNSW index in shared buffers.
-
-Add it to the run-of-show. The single most common demo failure is a cold system on the first query,
-and it is entirely preventable.
+**Still worth doing before a demo:** hit the API and run one real search fifteen minutes before
+presenting. It wakes Neon, primes the connection pool, and populates the HNSW index in shared
+buffers — the single most common demo failure is a cold system on the first query, and it costs
+nothing to prevent.
 
 ---
 
-## 6. Object storage — R2
+## 6. Object storage — R2, optional, with a Postgres fallback
+
+**R2 was never provisioned** — Cloudflare requires a card on file even for the free tier, which the
+project deliberately avoided. The live deployment instead stores mugshots directly in Postgres:
+migration `0010_media_bytes.sql` adds `media.image_bytes bytea` and `media.content_type text`,
+`r2_key` became nullable, and `backend/app/services/media_bytes.py` serves stored rows back as a
+`data:` URI inline in the JSON response. `POST /v1/person/{id}/media/direct` accepts base64 image
+bytes in one call — no presign round trip — decodes, re-derives the SHA-256 server-side rather than
+trusting the client, and enforces `settings.media_max_bytes`.
+
+This is sized for the prototype's own scale (roughly 20 enrolled people), not a production dataset:
+bytes now transit the API and the database on every read, which is exactly the cost R2's presigned
+GET was designed to avoid.
+
+**If R2 credentials are set, the original presigned-upload path still works** and is preferred at any
+real scale:
 
 ```bash
 wrangler r2 bucket create perigee-media          # private. never public.
 ```
-
-CORS, for the direct browser/app upload path:
-
-```json
-[{
-  "AllowedOrigins": ["https://perigee.vercel.app"],
-  "AllowedMethods": ["GET", "PUT"],
-  "AllowedHeaders": ["content-type", "content-md5"],
-  "MaxAgeSeconds": 3600
-}]
-```
-
-Access is exclusively presigned:
 
 ```python
 s3 = boto3.client(
@@ -308,50 +253,26 @@ url = s3.generate_presigned_url("get_object",
     Params={"Bucket": "perigee-media", "Key": key}, ExpiresIn=120)
 ```
 
-**Uploads bypass Render entirely.** The server presigns a PUT and the client sends bytes straight to
-R2. On a 512 MB instance, proxying image uploads is how you get OOM-killed mid-demo.
-
-**Zero egress fees** is why R2 over S3: mugshot loading in the app costs nothing regardless of
-volume.
+The server presigns a PUT and the client sends bytes straight to R2 — the API itself never touches
+the image. **Zero egress fees** is why R2 over S3 if it does get provisioned: mugshot loading in the
+app costs nothing regardless of volume.
 
 ---
 
-## 7. Migrating to Hugging Face Spaces
+## 7. Migration history
 
-Planned as a possible later move, and there is a caveat worth knowing **before** committing to it.
+The original plan here was Render, with Hugging Face Spaces documented as the fallback if Render's
+15-minute idle spindown proved disruptive in practice — see the (superseded)
+[ADR-0004](ADR/0004-render-native-python.md) for that reasoning and the Gradio-mount workaround Spaces
+would have required.
 
-**Free HF Spaces gives 2 vCPU / 16 GB RAM and only sleeps after 48 h idle** — dramatically better
-than Render's 15 minutes, and enough RAM to enable `/v1/embed` for server-side inference.
+Neither happened. The team deployed directly to Vercel — [ADR-0006](ADR/0006-vercel-python-functions.md)
+covers what changed and why, and it's the same category of move HF Spaces would have been: solve the
+cold-start problem by moving off Render. Vercel's Fluid Compute solved it without a workaround.
 
-**The caveat:** Spaces runs FastAPI natively only under the Gradio or Streamlit SDK. Raw FastAPI
-normally requires the Docker SDK, which is excluded. The workaround is to mount the FastAPI app
-inside a Gradio app:
-
-```python
-# app.py — Space entrypoint, gradio SDK, no Docker
-import gradio as gr
-from app.main import app as fastapi_app
-
-with gr.Blocks() as status:
-    gr.Markdown("## PERIGEE CORE\nAPI is live. See `/docs`.")
-
-demo = gr.mount_gradio_app(fastapi_app, status, path="/status")
-# Spaces runs this; FastAPI routes are served alongside the Gradio page.
-```
-
-Trade-offs to weigh honestly:
-
-| | Render | HF Spaces |
-| --- | --- | --- |
-| Idle timeout | 15 min | **48 h** |
-| RAM | 512 MB | **16 GB** |
-| Server-side embedding | Impossible | **Possible** |
-| Setup | Native, clean | Gradio-mount workaround |
-| Custom domain | Yes | No |
-| Optics for a government pitch | Neutral | An ML-demo host |
-
-**Recommendation: stay on Render for the hackathon**, and treat Spaces as the fallback if cold starts
-prove disruptive in practice. The API code is identical either way — only the entrypoint differs.
+**If Vercel's free-tier limits ever become the binding constraint**, the documented next step is
+self-hosting ([12 §7](12-SCALING-ROADMAP.md#7--self-hosted-deployment)), not a lateral move to another
+free-tier host — by that point the project has outgrown the free-tier era entirely.
 
 ---
 
@@ -459,7 +380,7 @@ HNSW index. Mocking the vector layer would leave the most failure-prone part of 
 | Uptime | UptimeRobot | 5 min checks on `/healthz` |
 | DB | Neon dashboard | Built in |
 | Web vitals | Vercel Analytics | Included |
-| Logs | Render dashboard | 7-day retention |
+| Logs | Vercel dashboard | Both projects, per-deployment |
 
 Structured JSON logging from day one. Every log line carries `request_id`, `device_id`, `officer_id`,
 and route — and **never** an embedding, a name, or an image key. A log that accumulates the data it
@@ -470,10 +391,11 @@ is monitoring is a second breach surface.
 ## 12. Environment variables
 
 ```bash
-# ── perigee-core (Render) ────────────────────────────────
+# ── perigee-core (Vercel) ────────────────────────────────
 DATABASE_URL=postgresql://…-pooler.ap-southeast-1.aws.neon.tech/perigee?sslmode=require
 DATASET_MODE=synthetic                    # no default; the server refuses to start without it
 ENABLE_SERVER_EMBED=false
+RATE_LIMIT_BACKEND=postgres               # required on Vercel; multiple instances share no process memory
 ALLOWED_MODEL_IDS=insightface/w600k_r50@1
 QUALITY_FLOOR=0.35
 BAND_NO_MATCH=0.28
@@ -481,24 +403,24 @@ BAND_WEAK=0.42
 BAND_REVIEW=0.58
 MAX_PENDING_DECISIONS=3
 SEARCH_EXPIRY_MINUTES=30
-R2_ACCOUNT_ID=…
+R2_ACCOUNT_ID=…                           # optional — unset means mugshots use the Postgres bytea fallback
 R2_ACCESS_KEY_ID=…
 R2_SECRET_ACCESS_KEY=…
 R2_BUCKET=perigee-media
 DEVICE_KEY_PEPPER=…
-CORS_ORIGINS=https://perigee.vercel.app
+CORS_ORIGINS=https://perigee-web.vercel.app
 SENTRY_DSN=…
 
 # ── perigee-web (Vercel) ────────────────────────────────
-PERIGEE_API_URL=https://perigee-core.onrender.com     # server-only
+PERIGEE_API_URL=https://perigee-core.vercel.app     # server-only
 
 # ── perigee-mobile (EAS secrets) ────────────────────────
-EXPO_PUBLIC_API_URL=https://perigee-core.onrender.com
+EXPO_PUBLIC_API_URL=https://perigee-core.vercel.app
 PERIGEE_DEVICE_KEY=…                                  # injected at build
 ```
 
 Thresholds are **environment variables, not constants**, so tuning them the night before the demo is
-a Render restart rather than a 30-minute EAS build. Clients read them from `GET /v1/config`.
+a redeploy rather than a 30-minute EAS build. Clients read them from `GET /v1/config`.
 
 ---
 
@@ -511,8 +433,7 @@ T-24h  ☐ Freeze the Neon `demo` branch with the known-good dataset
        ☐ Full dry run, end to end, on venue Wi-Fi if possible
        ☐ Record a 90-second screen capture as the fallback
 
-T-1h   ☐ Enable the keepalive workflow
-       ☐ Warm the API; run one real search
+T-1h   ☐ Warm the API; run one real search
        ☐ Verify the audit chain: GET /v1/audit/verify
        ☐ Charge devices; disable auto-lock and battery saver
        ☐ Airplane-mode test — confirm the offline queue engages

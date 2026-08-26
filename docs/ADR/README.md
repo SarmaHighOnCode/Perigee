@@ -12,8 +12,9 @@ Revisit when.
 | [0001](0001-on-device-embedding.md) | Face embedding runs on-device; the API contract is embedding-first | Accepted | Model drift across devices; adversarial embedding submission |
 | [0002](0002-postgres-for-everything.md) | One Postgres for relational, vector and graph | Accepted | Graph traversal capped at 3 hops |
 | [0003](0003-no-auth-defensible.md) | No authentication; attribution, purpose-binding and audit instead | Accepted | Identity is asserted, never proven |
-| [0004](0004-render-native-python.md) | Render free tier, native Python, no Docker | Accepted | 50-second cold start |
+| [0004](0004-render-native-python.md) | Render free tier, native Python, no Docker | **Superseded by 0006** | 50-second cold start |
 | [0005](0005-neobrutalism-as-ergonomics.md) | Neobrutalism as a field-ergonomics decision | Accepted | Accent contrast needs active policing |
+| [0006](0006-vercel-python-functions.md) | Vercel Python Functions, superseding 0004 | Accepted | A real, smaller cold start remains; rate limiter moved to Postgres |
 
 ---
 
@@ -25,12 +26,12 @@ exposed.
 ```mermaid
 graph TB
     A["<b>0001</b><br/>on-device embedding"]
-    B["<b>0004</b><br/>Render 512 MB<br/>native Python"]
+    B["<b>0006</b><br/>Vercel Python Functions<br/>supersedes 0004 (Render)"]
     C["<b>0002</b><br/>one Postgres"]
     D["<b>0003</b><br/>no auth"]
     E["<b>0005</b><br/>neobrutalism"]
 
-    A -->|"backend carries zero ML deps<br/>⇒ 120 MB fits in 512 MB"| B
+    A -->|"backend carries zero ML deps<br/>⇒ tiny footprint on any host"| B
     A -->|"vectors arrive from clients<br/>⇒ pgvector is the whole backend"| C
     A -.->|"accepts vectors, not images<br/>⇒ opens threat T1"| D
     D -->|"no login ⇒ the UI is<br/>the accountability surface"| E
@@ -40,10 +41,11 @@ graph TB
     style D fill:#FFE600,stroke:#0A0A0A,stroke-width:3px,color:#0A0A0A
 ```
 
-**0001 is the keystone.** Pushing inference to the phone is what makes a free 512 MB backend viable
-(0004), reduces the server to a vector index (0002), and produces the privacy claim the whole
-project rests on. It is also what opens the one security hole nobody has closed (0003, threat T1) —
-because accepting vectors instead of images means accepting vectors nobody can vouch for.
+**0001 is the keystone.** Pushing inference to the phone is what makes a zero-ML-dependency backend
+viable on whichever free host is currently in play (0004, then 0006), reduces the server to a vector
+index (0002), and produces the privacy claim the whole project rests on. It is also what opens the
+one security hole nobody has closed (0003, threat T1) — because accepting vectors instead of images
+means accepting vectors nobody can vouch for.
 
 If exactly one decision here is wrong, it is that one, and it is the one verified first
 ([13 §2, Phase 1](../13-BUILD-PLAN.md#phase-1--de-risk-the-bet-1-day-️-critical)).

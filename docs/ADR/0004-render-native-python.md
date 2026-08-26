@@ -1,6 +1,11 @@
 # ADR-0004 — Render free tier, native Python runtime, no Docker
 
-**Status:** Accepted · **Date:** 2026-08-10
+**Status:** Superseded by [0006](0006-vercel-python-functions.md) · **Date:** 2026-08-10
+
+> **Superseded 2026-08-26.** Render was never actually deployed to — the team went to Vercel Python
+> Functions directly. The reasoning below is preserved as the historical record of why Render was
+> chosen at the time; it is not a description of the live system. See
+> [ADR-0006](0006-vercel-python-functions.md) for what changed and why.
 
 ---
 
